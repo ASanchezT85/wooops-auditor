@@ -2,8 +2,8 @@
     "metadata": {
         "schema_version": "1.0.0",
         "auditor_version": "0.1.0",
-        "timestamp": 1756209600,
-        "generated_at": "2025-08-26T12:00:00+00:00",
+        "timestamp": 1787745600,
+        "generated_at": "2026-08-26T12:00:00+00:00",
         "read_only": true
     },
     "environment": {
@@ -121,8 +121,8 @@
             "recommended_action": "Start with the most frequently failing hook below and identify the plugin that registers it. Failures usually share one root cause.",
             "evidence": {
                 "failed_count": 43,
-                "oldest": 1755000000,
-                "newest": 1756204200,
+                "oldest": 1786536000,
+                "newest": 1787740200,
                 "top_hooks": {
                     "wc_update_product_lookup_tables": 24,
                     "gla/jobs/update_products": 15,
@@ -309,12 +309,12 @@
             "overdue": [
                 {
                     "hook": "woocommerce_scheduled_sales",
-                    "timestamp": 1756207200,
+                    "timestamp": 1787743200,
                     "delay": 2400
                 },
                 {
                     "hook": "wc_admin_daily",
-                    "timestamp": 1756207800,
+                    "timestamp": 1787743800,
                     "delay": 1800
                 }
             ],
@@ -324,8 +324,8 @@
         },
         "action_scheduler_failed": {
             "total": 43,
-            "oldest": 1755000000,
-            "newest": 1756204200,
+            "oldest": 1786536000,
+            "newest": 1787740200,
             "by_hook": {
                 "wc_update_product_lookup_tables": 24,
                 "gla/jobs/update_products": 15,

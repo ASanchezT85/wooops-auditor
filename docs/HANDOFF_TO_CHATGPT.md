@@ -22,7 +22,7 @@ The repository is on GitHub: `https://github.com/ASanchezT85/wooops-auditor.git`
 | Location | `C:\laragon\www\wooops-auditor` |
 | Remote | `https://github.com/ASanchezT85/wooops-auditor.git` |
 | Branch | `feature/wooops-auditor-v0.1` (also the remote default branch) |
-| Commits | 14, **1 not yet pushed** (`ed110d1`, the readme rewrite) |
+| Commits | 17, all pushed |
 | Version | 0.1.0, JSON schema 1.0.0 |
 | Tests | 45 tests, 111 assertions, **all passing** (~35 ms) |
 | Staging validation | Done 2026-08-26 against WooCommerce 11.0.1; store since deleted |
@@ -143,7 +143,7 @@ Default output directory: `wp-content/uploads/wooops-audit/` (created 0750, with
 JSON top level:
 
 ```json
-{ "metadata": { "schema_version": "1.0.0", "auditor_version": "0.1.0", "timestamp": 1756209600, "read_only": true },
+{ "metadata": { "schema_version": "1.0.0", "auditor_version": "0.1.0", "timestamp": 1787745600, "read_only": true },
   "environment": {}, "score": 54, "summary": {}, "findings": [], "checks": {}, "errors": [] }
 ```
 
@@ -165,7 +165,9 @@ Full list in `docs/LIMITATIONS.md`. The ones that matter commercially:
 
 No known bugs in the code.
 
-**Corrected error:** `docs/SECURITY.md` claimed the broad write-keyword grep returned "exactly two hits". It returns **five** — the original number came from a filtered count and was wrong as published (commit `ac8cd28`). Fixed in `ed110d1`: the docs now name all five (four are prose inside finding text, the fifth is the docblock asserting the guarantee), and both the readme and SECURITY.md now lead with a *strict* grep covering real SQL writes and WordPress/WooCommerce write APIs, which returns nothing. All three grep variants were executed and confirmed before publishing.
+**Corrected error (2):** the demo fixture's pinned clock was `1756209600`, which is **2025**-08-26, not 2026 as its own comment claimed. Every generated sample report was therefore dated a year in the past — spotted while rendering the readme screenshot. Fixed to `1787745600`; the sample was regenerated.
+
+**Corrected error (1):** `docs/SECURITY.md` claimed the broad write-keyword grep returned "exactly two hits". It returns **five** — the original number came from a filtered count and was wrong as published (commit `ac8cd28`). Fixed in `ed110d1`: the docs now name all five (four are prose inside finding text, the fifth is the docblock asserting the guarantee), and both the readme and SECURITY.md now lead with a *strict* grep covering real SQL writes and WordPress/WooCommerce write APIs, which returns nothing. All three grep variants were executed and confirmed before publishing.
 
 Debt:
 
@@ -188,12 +190,9 @@ Installs ✔ · modifies no business data ✔ · seven checks ✔ · HPOS on and
 Nothing blocks using the tool. These are the open items:
 
 **Repository hygiene**
-- `ed110d1` (readme rewrite) is committed locally but **not pushed**.
-- No `LICENSE` file, though `composer.json` declares `proprietary`. Decide and add one.
 - No `v0.1.0` tag.
+- The repository is **private**. Fine for now; it has to change before agencies can see it.
 - The remote default branch is `feature/wooops-auditor-v0.1`. If this repo is going to be shown to agencies, it should have a `main`.
-- No CI. A GitHub Actions job running `composer install && vendor/bin/phpunit` on PHP 8.1/8.2/8.3 is roughly fifteen lines and would protect the one thing unit tests do cover.
-- The readme links `examples/sample-report.html`, which GitHub will not render — a visitor has to clone it. A PNG screenshot of the report in the readme would do more for the pitch than any wording change.
 
 **Product validation (the real gap)**
 - Run against **two or three real client stores** with different plugin stacks. All three false positives so far came from one *clean* install; a store with forty plugins will surface more.
@@ -226,5 +225,5 @@ ed110d1 docs: rewrite readme as an agency-facing pitch   ← not pushed
 
 ## 16. Exact next recommended step
 
-1. `git push` the readme commit, add a `LICENSE`, tag `v0.1.0`, and add the fifteen-line CI workflow. One sitting.
+1. Confirm the CI workflow actually runs (it is registered and Actions is enabled, but no run had appeared at the time of writing), tag `v0.1.0`, and decide on `main` + repo visibility.
 2. Then the only step that matters: **run it against real client stores** and collect false positives. The tool is finished enough; what it lacks is evidence about which of its findings agencies are willing to pay to be told about.

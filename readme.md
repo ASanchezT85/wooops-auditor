@@ -52,6 +52,10 @@ MEDIUM    orders.failed.gateway_concentration    9 of 10 failed orders (90%) use
 LOW       orders.pending.volume                  7 order(s) are in the pending payment status, totalling 821.75 USD. 4 of them are more than 24 hours old.
 ```
 
+And the HTML report is the thing you actually send to the client:
+
+![WooOps audit report](docs/images/sample-report.png)
+
 Every finding carries a plain-language **summary**, **why it matters**, a **recommended action**, and the **evidence** behind it — so the report is something you can forward, not something you have to translate first.
 
 Client-ready output: **[`examples/sample-report.html`](examples/sample-report.html)** (clone and open it in a browser — one self-contained file, no network needed) and **[`examples/sample-report.json`](examples/sample-report.json)**.

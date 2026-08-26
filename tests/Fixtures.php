@@ -11,7 +11,7 @@ use WooOps\Auditor\Store\ArrayGateway;
  */
 final class Fixtures
 {
-    public const NOW = 1756209600; // 2026-08-26 12:00:00 UTC, fixed for reproducibility
+    public const NOW = 1787745600; // 2026-08-26 12:00:00 UTC, fixed for reproducibility
 
     public static function healthy(): ArrayGateway
     {
