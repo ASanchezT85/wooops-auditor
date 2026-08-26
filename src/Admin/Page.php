@@ -3,33 +3,48 @@ declare(strict_types=1);
 
 namespace WooOps\Auditor\Admin;
 
+use WooOps\Auditor\Audit\AuditResult;
 use WooOps\Auditor\Audit\AuditRunner;
 use WooOps\Auditor\Audit\Severity;
-use WooOps\Auditor\Report\HtmlReporter;
-use WooOps\Auditor\Report\JsonReporter;
+use WooOps\Auditor\Report\ReportResponse;
+use WooOps\Auditor\Store\StoreGateway;
 use WooOps\Auditor\Store\WordPressGateway;
-use WooOps\Auditor\Support\ReportWriter;
 
 /**
  * Minimal admin screen: run the audit, see the score, download the reports.
  *
+ * Reports are **never written to disk from the admin screen**. A download
+ * request re-runs the audit and streams the result straight to the browser, so
+ * there is no report file left behind under wp-content/uploads for a
+ * misconfigured server to hand out. The only thing that persists is the
+ * metadata in self::OPTION — timestamp, score and severity counts — which
+ * contains no paths, no report body, no PII and no secrets.
+ *
  * Deliberately thin. WP-CLI is the primary interface in v0.1; this exists so
  * an agency can hand the screen to someone who does not have shell access.
- * Reports are served through admin-post with a capability check, never from a
- * public uploads URL.
  */
-final class Page
+class Page
 {
-    private const CAPABILITY = 'manage_woocommerce';
-    private const SLUG = 'wooops-audit';
-    private const OPTION = 'wooops_last_audit';
+    public const CAPABILITY = 'manage_woocommerce';
+    public const SLUG = 'wooops-audit';
+    public const OPTION = 'wooops_last_audit';
+    public const RUN_ACTION = 'wooops_run_audit';
+    public const DOWNLOAD_ACTION = 'wooops_download';
+
+    /** Injectable for tests; production always builds from the live $wpdb. */
+    private ?StoreGateway $gateway;
+
+    public function __construct(?StoreGateway $gateway = null)
+    {
+        $this->gateway = $gateway;
+    }
 
     public static function register(): void
     {
         $page = new self();
         add_action('admin_menu', [$page, 'addMenu']);
-        add_action('admin_post_wooops_run_audit', [$page, 'handleRun']);
-        add_action('admin_post_wooops_download', [$page, 'handleDownload']);
+        add_action('admin_post_' . self::RUN_ACTION, [$page, 'handleRun']);
+        add_action('admin_post_' . self::DOWNLOAD_ACTION, [$page, 'handleDownload']);
     }
 
     public function addMenu(): void
@@ -57,8 +72,8 @@ final class Page
         echo '<p>' . esc_html__('Runs a read-only diagnostic of this store. It never modifies orders, settings, cron or the database.', 'wooops-auditor') . '</p>';
 
         echo '<form method="post" action="' . esc_url($url) . '">';
-        wp_nonce_field('wooops_run_audit');
-        echo '<input type="hidden" name="action" value="wooops_run_audit">';
+        wp_nonce_field(self::RUN_ACTION);
+        echo '<input type="hidden" name="action" value="' . esc_attr(self::RUN_ACTION) . '">';
         submit_button(__('Run Read-Only Audit', 'wooops-auditor'));
         echo '</form>';
 
@@ -69,8 +84,8 @@ final class Page
         }
 
         echo '<h2>' . esc_html__('Last audit', 'wooops-auditor') . '</h2>';
-        echo '<p><strong>' . esc_html(gmdate('Y-m-d H:i', (int) $last['timestamp'])) . ' UTC</strong> — '
-            . esc_html__('Health score', 'wooops-auditor') . ': <strong>' . (int) $last['score'] . '/100</strong></p>';
+        echo '<p><strong>' . esc_html(gmdate('Y-m-d H:i', (int) ($last['timestamp'] ?? 0))) . ' UTC</strong> — '
+            . esc_html__('Health score', 'wooops-auditor') . ': <strong>' . (int) ($last['score'] ?? 0) . '/100</strong></p>';
 
         echo '<ul>';
         foreach (Severity::ORDER as $level) {
@@ -79,73 +94,105 @@ final class Page
                 echo '<li>' . esc_html($level) . ': ' . $count . '</li>';
             }
         }
-        echo '</ul><p>';
+        echo '</ul>';
 
-        foreach (['html', 'json'] as $format) {
-            if (empty($last['files'][$format])) {
-                continue;
-            }
+        echo '<p>';
+        foreach (ReportResponse::FORMATS as $format) {
             $link = wp_nonce_url(
-                add_query_arg(['action' => 'wooops_download', 'format' => $format], $url),
-                'wooops_download'
+                add_query_arg(
+                    ['action' => self::DOWNLOAD_ACTION, 'format' => $format],
+                    $url
+                ),
+                self::DOWNLOAD_ACTION
             );
             echo '<a class="button" href="' . esc_url($link) . '">'
                 . esc_html(sprintf(__('Download %s', 'wooops-auditor'), strtoupper($format)))
                 . '</a> ';
         }
+        echo '</p>';
 
-        echo '</p></div>';
+        echo '<p class="description">'
+            . esc_html__('Reports are generated when you download them and are never stored on the server, so a download re-runs the audit and reflects the store as it is right now.', 'wooops-auditor')
+            . '</p></div>';
     }
 
     public function handleRun(): void
     {
-        if (!current_user_can(self::CAPABILITY)) {
-            wp_die(esc_html__('Insufficient permissions.', 'wooops-auditor'));
-        }
-        check_admin_referer('wooops_run_audit');
+        $this->authorize(self::RUN_ACTION);
 
-        $result = (new AuditRunner())->run(WordPressGateway::create());
-        $writer = ReportWriter::default();
-        $stamp = gmdate('Y-m-d-His', $result->timestamp);
+        $result = $this->audit();
 
-        $files = [
-            'json' => $writer->write("wooops-audit-{$stamp}.json", (new JsonReporter())->render($result)),
-            'html' => $writer->write("wooops-audit-{$stamp}.html", (new HtmlReporter())->render($result)),
-        ];
-
+        // Metadata only. No file paths, no URLs, no report body: whatever is
+        // stored here is readable by anything that can read wp_options.
         update_option(self::OPTION, [
             'timestamp' => $result->timestamp,
             'score' => $result->score(),
             'summary' => $result->summary(),
-            'files' => $files,
         ], false);
 
         wp_safe_redirect(admin_url('admin.php?page=' . self::SLUG));
-        exit;
+        $this->terminate();
     }
 
     public function handleDownload(): void
     {
-        if (!current_user_can(self::CAPABILITY)) {
-            wp_die(esc_html__('Insufficient permissions.', 'wooops-auditor'));
-        }
-        check_admin_referer('wooops_download');
+        $this->authorize(self::DOWNLOAD_ACTION);
 
         $format = isset($_GET['format']) ? sanitize_key(wp_unslash($_GET['format'])) : '';
-        $last = get_option(self::OPTION, []);
-        $path = $last['files'][$format] ?? null;
+        if (!in_array($format, ReportResponse::FORMATS, true)) {
+            $this->deny(__('Unknown report format.', 'wooops-auditor'));
 
-        // Only ever serve a path this plugin wrote itself, inside its own directory.
-        $base = ReportWriter::default()->directory();
-        if (!is_string($path) || !str_starts_with($path, $base) || !is_readable($path)) {
-            wp_die(esc_html__('Report not available.', 'wooops-auditor'));
+            return;
         }
 
+        // Generated here, streamed, and gone. Nothing touches the filesystem.
+        $response = ReportResponse::create($format, $this->audit());
+
         nocache_headers();
-        header('Content-Type: ' . ($format === 'json' ? 'application/json' : 'text/html') . '; charset=utf-8');
-        header('Content-Disposition: attachment; filename="' . basename($path) . '"');
-        header('Content-Length: ' . filesize($path));
-        readfile($path);
+        foreach ($response->headers() as $header) {
+            $this->sendHeader($header);
+        }
+        $this->emit($response->body);
+        $this->terminate();
+    }
+
+    /**
+     * Capability first, then nonce. Both are required; neither is sufficient.
+     */
+    protected function authorize(string $action): void
+    {
+        if (!current_user_can(self::CAPABILITY)) {
+            $this->deny(__('Insufficient permissions.', 'wooops-auditor'));
+
+            return;
+        }
+
+        check_admin_referer($action);
+    }
+
+    protected function audit(): AuditResult
+    {
+        return (new AuditRunner())->run($this->gateway ?? WordPressGateway::create());
+    }
+
+    protected function deny(string $message): void
+    {
+        wp_die(esc_html($message), '', ['response' => 403]);
+    }
+
+    /** Seams, so the delivery path can be exercised by tests. */
+    protected function sendHeader(string $header): void
+    {
+        header($header);
+    }
+
+    protected function emit(string $body): void
+    {
+        echo $body; // phpcs:ignore WordPress.Security.EscapeOutput -- report bodies are escaped by their reporter.
+    }
+
+    protected function terminate(): void
+    {
         exit;
     }
 }

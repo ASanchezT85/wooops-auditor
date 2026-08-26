@@ -6,30 +6,36 @@ namespace WooOps\Auditor\Support;
 use RuntimeException;
 
 /**
- * Writes reports to a known, protected location.
+ * Writes a rendered report to a file.
  *
- * Reports contain operational detail about the store, so the default directory
- * is hardened against public access the same way WooCommerce protects its own
- * logs: deny rules for Apache, an index file, and a hard-to-guess suffix on
- * the directory name.
+ * Used only when someone explicitly asked for a file — that means WP-CLI, and
+ * nothing else. The admin screen streams reports from memory and never comes
+ * near this class.
+ *
+ * The default directory is a private one under the system temp directory, not
+ * wp-content/uploads. Reports describe the operational weaknesses of a live
+ * store; the previous default put them inside the web root and relied on an
+ * .htaccess deny rule, which does nothing on nginx. Rendering and persisting
+ * are now separate decisions, and persisting is opt-in.
  */
 final class ReportWriter
 {
+    private const DIR_MODE = 0700;
+    private const FILE_MODE = 0600;
+
     public function __construct(private string $directory)
     {
     }
 
+    /**
+     * A private directory outside the web root.
+     *
+     * Deliberately does NOT consult wp_upload_dir(): uploads is web-accessible
+     * by design, and an audit report is not something to leave there.
+     */
     public static function default(): self
     {
-        $base = sys_get_temp_dir();
-        if (function_exists('wp_upload_dir')) {
-            $uploads = wp_upload_dir();
-            if (empty($uploads['error'])) {
-                $base = $uploads['basedir'];
-            }
-        }
-
-        return new self(rtrim($base, '/\\') . DIRECTORY_SEPARATOR . 'wooops-audit');
+        return new self(rtrim(sys_get_temp_dir(), '/\\') . DIRECTORY_SEPARATOR . 'wooops-audit');
     }
 
     public function directory(): string
@@ -47,25 +53,18 @@ final class ReportWriter
             throw new RuntimeException("Could not write report to {$path}");
         }
 
-        @chmod($path, 0640);
+        @chmod($path, self::FILE_MODE);
 
         return $path;
     }
 
     private function prepare(): void
     {
-        if (!is_dir($this->directory) && !mkdir($this->directory, 0750, true) && !is_dir($this->directory)) {
+        if (!is_dir($this->directory)
+            && !mkdir($this->directory, self::DIR_MODE, true)
+            && !is_dir($this->directory)
+        ) {
             throw new RuntimeException("Could not create report directory {$this->directory}");
-        }
-
-        $htaccess = $this->directory . DIRECTORY_SEPARATOR . '.htaccess';
-        if (!file_exists($htaccess)) {
-            file_put_contents($htaccess, "Order deny,allow\nDeny from all\n");
-        }
-
-        $index = $this->directory . DIRECTORY_SEPARATOR . 'index.html';
-        if (!file_exists($index)) {
-            file_put_contents($index, '');
         }
     }
 }
