@@ -13,7 +13,7 @@ It modifies nothing in the store. It makes no outbound network requests. It coll
 
 It has been run against a real WooCommerce 11.0.1 staging store (§7). That run found and fixed **three false positives**, confirmed the HPOS and legacy SQL paths return identical numbers, and verified the monetary figures by hand. The staging store was deleted afterwards at the owner's request; the evidence and reproduction steps live in `docs/TESTING.md`.
 
-The repository is on GitHub: `https://github.com/ASanchezT85/wooops-auditor.git`.
+The repository is public on GitHub under **GPL-2.0-or-later**: `https://github.com/ASanchezT85/wooops-auditor`. The licence choice is deliberate: the plugin builds on WordPress/WooCommerce, GPL is the only licence that allows a future wordpress.org listing, and the business case does not live in the plugin code — it lives in the multi-store history and alerting that a future backend would provide, which the GPL does not reach.
 
 ## 2. Current status
 
@@ -21,8 +21,8 @@ The repository is on GitHub: `https://github.com/ASanchezT85/wooops-auditor.git`
 |---|---|
 | Location | `C:\laragon\www\wooops-auditor` |
 | Remote | `https://github.com/ASanchezT85/wooops-auditor.git` |
-| Branch | `feature/wooops-auditor-v0.1` (also the remote default branch) |
-| Commits | 17, all pushed |
+| Branch | `main` (default); `feature/wooops-auditor-v0.1` still present |
+| Commits | 19, all pushed; tagged `v0.1.0` |
 | Version | 0.1.0, JSON schema 1.0.0 |
 | Tests | 45 tests, 111 assertions, **all passing** (~35 ms) |
 | Staging validation | Done 2026-08-26 against WooCommerce 11.0.1; store since deleted |
@@ -190,8 +190,6 @@ Installs ✔ · modifies no business data ✔ · seven checks ✔ · HPOS on and
 Nothing blocks using the tool. These are the open items:
 
 **Repository hygiene**
-- No `v0.1.0` tag.
-- The repository is **private**. Fine for now; it has to change before agencies can see it.
 - The remote default branch is `feature/wooops-auditor-v0.1`. If this repo is going to be shown to agencies, it should have a `main`.
 
 **Product validation (the real gap)**
@@ -225,5 +223,5 @@ ed110d1 docs: rewrite readme as an agency-facing pitch   ← not pushed
 
 ## 16. Exact next recommended step
 
-1. Tag `v0.1.0`, and decide on `main` + repo visibility. (CI is settled: no Actions minutes on a private repo, so the gate is the local pre-push hook.)
-2. Then the only step that matters: **run it against real client stores** and collect false positives. The tool is finished enough; what it lacks is evidence about which of its findings agencies are willing to pay to be told about.
+1. Repo hygiene is done: `main` is default, `v0.1.0` is tagged, the repo is public under GPL-2.0-or-later, and CI runs again.
+2. The only step that matters now: **run it against real client stores** and collect false positives. The tool is finished enough; what it lacks is evidence about which of its findings agencies are willing to pay to be told about.

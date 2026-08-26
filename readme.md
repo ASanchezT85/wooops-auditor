@@ -144,7 +144,7 @@ The point of this version is to learn which findings agencies actually act on be
 
 ## Licence
 
-Proprietary — see [LICENSE](LICENSE). Running it against stores you own or maintain, and sharing the reports it produces, is fine; redistribution is not.
+GPL-2.0-or-later — see [LICENSE](LICENSE). Same licence as WordPress and WooCommerce, which this plugin builds on. Use it, fork it, run it against every store you maintain.
 
 ## Docs
 

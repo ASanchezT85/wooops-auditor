@@ -2,7 +2,7 @@
   "name": "wooops/auditor",
   "description": "WooOps Auditor v0.1 - read-only WooCommerce operational diagnostics",
   "type": "wordpress-plugin",
-  "license": "proprietary",
+  "license": "GPL-2.0-or-later",
   "require": {
     "php": ">=8.1"
   },
