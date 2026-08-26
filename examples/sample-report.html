@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WooOps Audit — https://demo-store.example</title>
+<style>
+:root{--ink:#1c1e21;--muted:#63676c;--line:#e2e5e9;--bg:#f6f7f9;--card:#fff;
+--crit:#a01b25;--high:#c25908;--med:#9a7c05;--low:#3a6ea5;--info:#63676c;--pass:#1f7a45;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+.wrap{max-width:900px;margin:0 auto;padding:32px 20px 64px}
+header{border-bottom:3px solid var(--ink);padding-bottom:16px;margin-bottom:28px}
+h1{font-size:22px;margin:0 0 4px;letter-spacing:-.01em}
+h1 span{color:var(--muted);font-weight:400}
+h2{font-size:15px;text-transform:uppercase;letter-spacing:.08em;margin:38px 0 14px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+.meta{color:var(--muted);font-size:13px}
+.meta b{color:var(--ink);font-weight:600}
+.score{display:flex;gap:24px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:20px 24px;margin-bottom:8px}
+.score .n{font-size:44px;font-weight:700;line-height:1}
+.score .n small{font-size:16px;color:var(--muted);font-weight:400}
+.score.good .n{color:var(--pass)}.score.warn .n{color:var(--med)}.score.bad .n{color:var(--crit)}
+.counts{display:flex;flex-wrap:wrap;gap:8px}
+.pill{display:inline-block;border-radius:999px;padding:3px 11px;font-size:12px;font-weight:600;color:#fff;letter-spacing:.03em}
+.pill.CRITICAL{background:var(--crit)}.pill.HIGH{background:var(--high)}.pill.MEDIUM{background:var(--med)}
+.pill.LOW{background:var(--low)}.pill.INFO{background:var(--info)}.pill.PASS{background:var(--pass)}
+.pill.z{background:#c8ccd1;color:#444}
+.f{background:var(--card);border:1px solid var(--line);border-left:5px solid var(--info);border-radius:6px;padding:16px 18px;margin:0 0 14px}
+.f.CRITICAL{border-left-color:var(--crit)}.f.HIGH{border-left-color:var(--high)}
+.f.MEDIUM{border-left-color:var(--med)}.f.LOW{border-left-color:var(--low)}.f.PASS{border-left-color:var(--pass)}
+.f h3{margin:0 0 6px;font-size:16px;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.f .id{font:11px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--muted)}
+.f p{margin:8px 0}
+.f .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);display:block;margin-top:12px}
+details{margin-top:10px}
+summary{cursor:pointer;font-size:13px;color:var(--low)}
+table{border-collapse:collapse;width:100%;font-size:13px;background:var(--card)}
+th,td{text-align:left;padding:6px 10px;border:1px solid var(--line);vertical-align:top}
+th{background:#f0f2f4;font-weight:600;width:34%}
+table.ev{margin:6px 0 0}
+table.ev th{width:38%;font-weight:500;font-size:12px}
+.v{font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;word-break:break-word}
+.note{color:var(--muted);font-size:12px;margin-top:8px}
+footer{margin-top:44px;padding-top:14px;border-top:1px solid var(--line);color:var(--muted);font-size:12px}
+@media print{body{background:#fff}.wrap{max-width:none;padding:0}.f{break-inside:avoid}details{display:none}}
+@media (max-width:600px){.score{flex-direction:column;align-items:flex-start;gap:14px}th{width:auto}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>WooOps Audit <span>— read-only diagnostic</span></h1>
+  <p class="meta">
+    Store <b>https://demo-store.example</b><br>
+    Audit date <b>2025-08-26 12:00 UTC</b><br>
+    WordPress <b>6.5.2</b> ·
+    WooCommerce <b>8.9.1</b> ·
+    PHP <b>8.2.18</b> ·
+    HPOS <b>yes</b>
+  </p>
+</header>
+
+<div class="score bad">
+  <div class="n">54<small>/100</small></div>
+  <div>
+    <div class="counts">
+              <span class="pill CRITICAL">CRITICAL 1</span>
+              <span class="pill HIGH">HIGH 2</span>
+              <span class="pill MEDIUM">MEDIUM 3</span>
+              <span class="pill LOW">LOW 4</span>
+              <span class="pill INFO">INFO 1</span>
+              <span class="pill z">PASS 0</span>
+          </div>
+    <p class="note">Health score is a headline indicator only: 100 minus a fixed penalty for the worst finding in each category. Read the findings, not the number.</p>
+  </div>
+</div>
+
+
+<h2>Findings</h2>
+  <article class="f CRITICAL">
+    <h3><span class="pill CRITICAL">CRITICAL</span> Unusually large actionscheduler_logs table      <span class="id">database.actionscheduler_logs.bloat</span></h3>
+    <p>The table wp_actionscheduler_logs holds 1,072,113 rows and occupies 1.31 GB.</p>
+          <span class="lbl">Why it matters</span><p>Action Scheduler keeps completed actions and their log entries until something prunes them. Left alone the tables grow without bound, which slows every queue claim and makes backups and migrations painful.</p>
+              <span class="lbl">Recommended action</span><p>Confirm the Action Scheduler retention period for this store and check whether the cleanup job is running. Do not delete rows manually without understanding what is still queued.</p>
+              <p class="note">Row counts come from the storage engine statistics and are approximate on InnoDB.</p>
+              <details open><summary>Evidence</summary><table class="ev"><tr><th>table</th><td><span class="v">wp_actionscheduler_logs</span></td></tr><tr><th>rows</th><td><span class="v">1,072,113</span></td></tr><tr><th>data size</th><td><span class="v">1010 MB (1,059,061,760 B)</span></td></tr><tr><th>index size</th><td><span class="v">331 MB (347,078,656 B)</span></td></tr><tr><th>total size</th><td><span class="v">1.31 GB (1,406,140,416 B)</span></td></tr></table></details>
+      </article>
+  <article class="f HIGH">
+    <h3><span class="pill HIGH">HIGH</span> Action Scheduler queue is behind      <span class="id">action_scheduler.past_due.backlog</span></h3>
+    <p>12 pending action(s) are past their scheduled time. The oldest is 1.2 hours late (median lag 32 minutes).</p>
+          <span class="lbl">Why it matters</span><p>Past-due actions are queued work that should already have run. A sustained backlog means background processing is slower than the rate at which the store creates work, or has stopped entirely.</p>
+              <span class="lbl">Recommended action</span><p>Confirm the queue runner is executing (WP-Cron or WP-CLI), then look at whether one hook is generating more work than the queue can drain.</p>
+                  <details open><summary>Evidence</summary><table class="ev"><tr><th>past due count</th><td><span class="v">12</span></td></tr><tr><th>oldest delay seconds</th><td><span class="v">1.2 hours</span></td></tr><tr><th>median delay seconds</th><td><span class="v">32 minutes</span></td></tr><tr><th>top hooks</th><td><table class="ev"><tr><th>action scheduler run queue</th><td><span class="v">6</span></td></tr><tr><th>woocommerce run product attribute lookup regeneration callback</th><td><span class="v">4</span></td></tr><tr><th>wcs scheduled subscription payment</th><td><span class="v">2</span></td></tr></table></td></tr></table></details>
+      </article>
+  <article class="f HIGH">
+    <h3><span class="pill HIGH">HIGH</span> Unusually large actionscheduler_actions table      <span class="id">database.actionscheduler_actions.bloat</span></h3>
+    <p>The table wp_actionscheduler_actions holds 312,044 rows and occupies 286 MB.</p>
+          <span class="lbl">Why it matters</span><p>Action Scheduler keeps completed actions and their log entries until something prunes them. Left alone the tables grow without bound, which slows every queue claim and makes backups and migrations painful.</p>
+              <span class="lbl">Recommended action</span><p>Confirm the Action Scheduler retention period for this store and check whether the cleanup job is running. Do not delete rows manually without understanding what is still queued.</p>
+              <p class="note">Row counts come from the storage engine statistics and are approximate on InnoDB.</p>
+              <details open><summary>Evidence</summary><table class="ev"><tr><th>table</th><td><span class="v">wp_actionscheduler_actions</span></td></tr><tr><th>rows</th><td><span class="v">312,044</span></td></tr><tr><th>data size</th><td><span class="v">190 MB (199,229,440 B)</span></td></tr><tr><th>index size</th><td><span class="v">96 MB (100,663,296 B)</span></td></tr><tr><th>total size</th><td><span class="v">286 MB (299,892,736 B)</span></td></tr></table></details>
+      </article>
+  <article class="f MEDIUM">
+    <h3><span class="pill MEDIUM">MEDIUM</span> Some WP-Cron events are running late      <span class="id">cron.overdue.medium</span></h3>
+    <p>2 scheduled event(s) are overdue; the worst is 40 minutes late.</p>
+          <span class="lbl">Why it matters</span><p>Moderate lateness is normal on low-traffic sites using the default WordPress cron, but it is worth watching.</p>
+              <span class="lbl">Recommended action</span><p>If this store depends on timely background work, move to a real system cron.</p>
+                  <details open><summary>Evidence</summary><table class="ev"><tr><th>overdue count</th><td><span class="v">2</span></td></tr><tr><th>worst delay seconds</th><td><span class="v">40 minutes</span></td></tr></table></details>
+      </article>
+  <article class="f MEDIUM">
+    <h3><span class="pill MEDIUM">MEDIUM</span> Failed scheduled actions present      <span class="id">action_scheduler.failed.volume</span></h3>
+    <p>43 scheduled action(s) are currently marked as failed. The oldest failure is 14 days old.</p>
+          <span class="lbl">Why it matters</span><p>WooCommerce and its extensions push operational work onto Action Scheduler: order emails, stock and lookup-table updates, feed syncs, subscription renewals. A failed action is work that silently did not happen.</p>
+              <span class="lbl">Recommended action</span><p>Start with the most frequently failing hook below and identify the plugin that registers it. Failures usually share one root cause.</p>
+                  <details open><summary>Evidence</summary><table class="ev"><tr><th>failed count</th><td><span class="v">43</span></td></tr><tr><th>oldest</th><td><span class="v">2025-08-12 12:00 UTC</span></td></tr><tr><th>newest</th><td><span class="v">2025-08-26 10:30 UTC</span></td></tr><tr><th>top hooks</th><td><table class="ev"><tr><th>wc update product lookup tables</th><td><span class="v">24</span></td></tr><tr><th>gla/jobs/update products</th><td><span class="v">15</span></td></tr><tr><th>some plugin background sync</th><td><span class="v">4</span></td></tr></table></td></tr></table></details>
+      </article>
+  <article class="f MEDIUM">
+    <h3><span class="pill MEDIUM">MEDIUM</span> Failures are concentrated in one hook      <span class="id">action_scheduler.failed.concentration</span></h3>
+    <p>24 of 43 failures (56%) come from the hook &quot;wc_update_product_lookup_tables&quot;.</p>
+          <span class="lbl">Why it matters</span><p>A single dominant hook usually means one broken extension rather than a general scheduler problem, which makes it much cheaper to fix.</p>
+              <span class="lbl">Recommended action</span><p>Identify the plugin registering this hook and inspect its most recent failure log entry.</p>
+                  <details open><summary>Evidence</summary><table class="ev"><tr><th>hook</th><td><span class="v">wc_update_product_lookup_tables</span></td></tr><tr><th>hook failures</th><td><span class="v">24</span></td></tr><tr><th>failed count</th><td><span class="v">43</span></td></tr></table></details>
+      </article>
+  <article class="f LOW">
+    <h3><span class="pill LOW">LOW</span> WordPress memory limit below the recommended 256M      <span class="id">environment.memory.below_recommended</span></h3>
+    <p>WP_MEMORY_LIMIT is 192M.</p>
+          <span class="lbl">Why it matters</span><p>WooCommerce recommends 256M for stores of any real size.</p>
+              <span class="lbl">Recommended action</span><p>Consider raising WP_MEMORY_LIMIT to 256M.</p>
+                  <details open><summary>Evidence</summary><table class="ev"><tr><th>wp memory limit</th><td><span class="v">192M</span></td></tr></table></details>
+      </article>
+  <article class="f LOW">
+    <h3><span class="pill LOW">LOW</span> WP_DEBUG is enabled      <span class="id">environment.wp_debug.enabled</span></h3>
+    <p>WP_DEBUG is on. On a production store this can leak notices into responses and grow debug.log without bound.</p>
+          <span class="lbl">Why it matters</span><p>Debug output on a live storefront is both a disclosure risk and a disk-space risk.</p>
+              <span class="lbl">Recommended action</span><p>Disable WP_DEBUG on production, or at least set WP_DEBUG_DISPLAY to false.</p>
+                  <details open><summary>Evidence</summary><table class="ev"><tr><th>wp debug</th><td><span class="v">yes</span></td></tr></table></details>
+      </article>
+  <article class="f LOW">
+    <h3><span class="pill LOW">LOW</span> Pending orders are ageing      <span class="id">orders.pending.volume</span></h3>
+    <p>7 order(s) are in the pending payment status, totalling 742.81 USD. 3 of them are more than 24 hours old.</p>
+          <span class="lbl">Why it matters</span><p>Pending means the store is still waiting for payment confirmation. Some of these are ordinary abandoned checkouts, but the ones that never resolve can also indicate a gateway callback that is not arriving, or a payment that was taken and never recorded against the order.</p>
+              <span class="lbl">Recommended action</span><p>Open the oldest pending orders listed below and reconcile them against the payment gateway dashboard. If the gateway shows a captured payment, the callback path is broken.</p>
+              <p class="note">Value shown is the order total as recorded by WooCommerce. It is not revenue, and it is not money that was lost.</p>
+              <details open><summary>Evidence</summary><table class="ev"><tr><th>pending count</th><td><span class="v">7</span></td></tr><tr><th>total value</th><td><span class="v">742.81</span></td></tr><tr><th>currency</th><td><span class="v">USD</span></td></tr><tr><th>stale over 24h</th><td><span class="v">3</span></td></tr><tr><th>by age bucket</th><td><table class="ev"><tr><th>&lt;1h</th><td><span class="v">1</span></td></tr><tr><th>1-6h</th><td><span class="v">2</span></td></tr><tr><th>6-24h</th><td><span class="v">1</span></td></tr><tr><th>1-7d</th><td><span class="v">2</span></td></tr><tr><th>&gt;7d</th><td><span class="v">1</span></td></tr></table></td></tr><tr><th>by payment method</th><td><table class="ev"><tr><th>Credit Card (Stripe)</th><td><span class="v">5</span></td></tr><tr><th>Direct bank transfer</th><td><span class="v">2</span></td></tr></table></td></tr><tr><th>oldest orders</th><td><table class="ev"><tr><th>#1</th><td><table class="ev"><tr><th>id</th><td><span class="v">18041</span></td></tr><tr><th>date</th><td><span class="v">2026-08-12 09:14:00</span></td></tr><tr><th>age</th><td><span class="v">1220760</span></td></tr><tr><th>amount</th><td><span class="v">189</span></td></tr><tr><th>currency</th><td><span class="v">USD</span></td></tr><tr><th>payment method</th><td><span class="v">Direct bank transfer</span></td></tr><tr><th>status</th><td><span class="v">pending</span></td></tr></table></td></tr><tr><th>#2</th><td><table class="ev"><tr><th>id</th><td><span class="v">18122</span></td></tr><tr><th>date</th><td><span class="v">2026-08-22 17:41:00</span></td></tr><tr><th>age</th><td><span class="v">325140</span></td></tr><tr><th>amount</th><td><span class="v">74.5</span></td></tr><tr><th>currency</th><td><span class="v">USD</span></td></tr><tr><th>payment method</th><td><span class="v">Credit Card (Stripe)</span></td></tr><tr><th>status</th><td><span class="v">pending</span></td></tr></table></td></tr><tr><th>#3</th><td><table class="ev"><tr><th>id</th><td><span class="v">18190</span></td></tr><tr><th>date</th><td><span class="v">2026-08-25 08:02:00</span></td></tr><tr><th>age</th><td><span class="v">100680</span></td></tr><tr><th>amount</th><td><span class="v">132.4</span></td></tr><tr><th>currency</th><td><span class="v">USD</span></td></tr><tr><th>payment method</th><td><span class="v">Credit Card (Stripe)</span></td></tr><tr><th>status</th><td><span class="v">pending</span></td></tr></table></td></tr></table></td></tr></table></details>
+      </article>
+  <article class="f LOW">
+    <h3><span class="pill LOW">LOW</span> Failed orders in the last 30 days      <span class="id">orders.failed.volume</span></h3>
+    <p>3 order(s) failed in the last 30 days, for a total attempted value of 438.98 USD.</p>
+          <span class="lbl">Why it matters</span><p>A failed order is a checkout that did not complete at the payment step. A background level of failures is normal (declined cards, 3-D Secure abandonment). A spike, or a concentration in one gateway, usually means a misconfiguration rather than customer behaviour.</p>
+              <span class="lbl">Recommended action</span><p>Compare the failure counts per gateway below against the gateway dashboard. If one gateway dominates, check its API credentials, webhook endpoint and currency configuration.</p>
+              <p class="note">Attempted value is the sum of the order totals. It is NOT revenue lost: most failed orders would not have converted.</p>
+              <details open><summary>Evidence</summary><table class="ev"><tr><th>failed count</th><td><span class="v">3</span></td></tr><tr><th>window days</th><td><span class="v">30</span></td></tr><tr><th>attempted value</th><td><span class="v">438.98</span></td></tr><tr><th>currency</th><td><span class="v">USD</span></td></tr><tr><th>by payment method</th><td><table class="ev"><tr><th>Credit Card (Stripe)</th><td><span class="v">2</span></td></tr><tr><th>PayPal</th><td><span class="v">1</span></td></tr></table></td></tr><tr><th>by age bucket</th><td><table class="ev"><tr><th>&lt;1h</th><td><span class="v">0</span></td></tr><tr><th>1-6h</th><td><span class="v">1</span></td></tr><tr><th>6-24h</th><td><span class="v">1</span></td></tr><tr><th>1-7d</th><td><span class="v">1</span></td></tr><tr><th>&gt;7d</th><td><span class="v">0</span></td></tr></table></td></tr><tr><th>recent orders</th><td><table class="ev"><tr><th>#1</th><td><table class="ev"><tr><th>id</th><td><span class="v">18163</span></td></tr><tr><th>date</th><td><span class="v">2026-08-21 11:20:00</span></td></tr><tr><th>age</th><td><span class="v">434280</span></td></tr><tr><th>amount</th><td><span class="v">249.99</span></td></tr><tr><th>currency</th><td><span class="v">USD</span></td></tr><tr><th>payment method</th><td><span class="v">Credit Card (Stripe)</span></td></tr><tr><th>status</th><td><span class="v">failed</span></td></tr></table></td></tr><tr><th>#2</th><td><table class="ev"><tr><th>id</th><td><span class="v">18156</span></td></tr><tr><th>date</th><td><span class="v">2026-08-24 19:05:00</span></td></tr><tr><th>age</th><td><span class="v">147300</span></td></tr><tr><th>amount</th><td><span class="v">89</span></td></tr><tr><th>currency</th><td><span class="v">USD</span></td></tr><tr><th>payment method</th><td><span class="v">PayPal</span></td></tr><tr><th>status</th><td><span class="v">failed</span></td></tr></table></td></tr></table></td></tr></table></details>
+      </article>
+
+<h2>Checks that passed</h2>
+      <article class="f INFO">
+      <h3><span class="pill INFO">INFO</span> DISABLE_WP_CRON is true        <span class="id">cron.disabled.unverifiable</span></h3>
+      <p>WordPress will not trigger cron on page loads. An external system cron may be configured; that cannot be verified from inside WordPress.</p>
+    </article>
+  
+<h2>Environment</h2>
+<table>
+      <tr>
+      <th>wordpress version</th>
+      <td class="v">6.5.2</td>
+    </tr>
+      <tr>
+      <th>woocommerce version</th>
+      <td class="v">8.9.1</td>
+    </tr>
+      <tr>
+      <th>woocommerce active</th>
+      <td class="v">yes</td>
+    </tr>
+      <tr>
+      <th>woocommerce db version</th>
+      <td class="v">8.9.1</td>
+    </tr>
+      <tr>
+      <th>hpos enabled</th>
+      <td class="v">yes</td>
+    </tr>
+      <tr>
+      <th>php version</th>
+      <td class="v">8.2.18</td>
+    </tr>
+      <tr>
+      <th>database version</th>
+      <td class="v">10.6.17-MariaDB</td>
+    </tr>
+      <tr>
+      <th>wp memory limit</th>
+      <td class="v">192M</td>
+    </tr>
+      <tr>
+      <th>php memory limit</th>
+      <td class="v">512M</td>
+    </tr>
+      <tr>
+      <th>wp debug</th>
+      <td class="v">yes</td>
+    </tr>
+      <tr>
+      <th>wp cron disabled</th>
+      <td class="v">no</td>
+    </tr>
+      <tr>
+      <th>site url</th>
+      <td class="v">https://demo-store.example</td>
+    </tr>
+      <tr>
+      <th>https</th>
+      <td class="v">yes</td>
+    </tr>
+      <tr>
+      <th>timezone</th>
+      <td class="v">UTC</td>
+    </tr>
+      <tr>
+      <th>active theme</th>
+      <td class="v">Storefront 4.6.0</td>
+    </tr>
+      <tr>
+      <th>active plugins count</th>
+      <td class="v">34</td>
+    </tr>
+      <tr>
+      <th>woocommerce plugins</th>
+      <td class="v">WooCommerce 8.9.1, WooCommerce Subscriptions 5.9.0, Google Listings and Ads 2.7.2, WooCommerce Stripe Gateway 8.1.0</td>
+    </tr>
+      <tr>
+      <th>db prefix</th>
+      <td class="v">wp_</td>
+    </tr>
+  </table>
+<p class="note">Secrets, keys, salts and credentials are never collected. Order data is aggregated and contains no customer names, addresses, emails or phone numbers.</p>
+
+<h2>Appendix — raw check data</h2>
+  <details><summary>environment</summary><table class="ev"><tr><th>wordpress version</th><td><span class="v">6.5.2</span></td></tr><tr><th>woocommerce version</th><td><span class="v">8.9.1</span></td></tr><tr><th>woocommerce active</th><td><span class="v">yes</span></td></tr><tr><th>woocommerce db version</th><td><span class="v">8.9.1</span></td></tr><tr><th>hpos enabled</th><td><span class="v">yes</span></td></tr><tr><th>php version</th><td><span class="v">8.2.18</span></td></tr><tr><th>database version</th><td><span class="v">10.6.17-MariaDB</span></td></tr><tr><th>wp memory limit</th><td><span class="v">192M</span></td></tr><tr><th>php memory limit</th><td><span class="v">512M</span></td></tr><tr><th>wp debug</th><td><span class="v">yes</span></td></tr><tr><th>wp cron disabled</th><td><span class="v">no</span></td></tr><tr><th>site url</th><td><span class="v">https://demo-store.example</span></td></tr><tr><th>https</th><td><span class="v">yes</span></td></tr><tr><th>timezone</th><td><span class="v">UTC</span></td></tr><tr><th>active theme</th><td><span class="v">Storefront 4.6.0</span></td></tr><tr><th>active plugins count</th><td><span class="v">34</span></td></tr><tr><th>woocommerce plugins</th><td><table class="ev"><tr><th>#1</th><td><span class="v">WooCommerce 8.9.1</span></td></tr><tr><th>#2</th><td><span class="v">WooCommerce Subscriptions 5.9.0</span></td></tr><tr><th>#3</th><td><span class="v">Google Listings and Ads 2.7.2</span></td></tr><tr><th>#4</th><td><span class="v">WooCommerce Stripe Gateway 8.1.0</span></td></tr></table></td></tr><tr><th>db prefix</th><td><span class="v">wp_</span></td></tr></table></details>
+  <details><summary>cron</summary><table class="ev"><tr><th>disabled</th><td><span class="v">yes</span></td></tr><tr><th>alternate</th><td><span class="v">no</span></td></tr><tr><th>total events</th><td><span class="v">41</span></td></tr><tr><th>overdue</th><td><table class="ev"><tr><th>#1</th><td><table class="ev"><tr><th>hook</th><td><span class="v">woocommerce_scheduled_sales</span></td></tr><tr><th>timestamp</th><td><span class="v">1756207200</span></td></tr><tr><th>delay</th><td><span class="v">2400</span></td></tr></table></td></tr><tr><th>#2</th><td><table class="ev"><tr><th>hook</th><td><span class="v">wc_admin_daily</span></td></tr><tr><th>timestamp</th><td><span class="v">1756207800</span></td></tr><tr><th>delay</th><td><span class="v">1800</span></td></tr></table></td></tr></table></td></tr><tr><th>next events</th><td><span class="v">—</span></td></tr><tr><th>woocommerce hooks</th><td><span class="v">11</span></td></tr><tr><th>doing cron stale</th><td><span class="v">—</span></td></tr></table></details>
+  <details><summary>action_scheduler_failed</summary><table class="ev"><tr><th>total</th><td><span class="v">43</span></td></tr><tr><th>oldest</th><td><span class="v">2025-08-12 12:00 UTC</span></td></tr><tr><th>newest</th><td><span class="v">2025-08-26 10:30 UTC</span></td></tr><tr><th>by hook</th><td><table class="ev"><tr><th>wc update product lookup tables</th><td><span class="v">24</span></td></tr><tr><th>gla/jobs/update products</th><td><span class="v">15</span></td></tr><tr><th>some plugin background sync</th><td><span class="v">4</span></td></tr></table></td></tr><tr><th>by group</th><td><table class="ev"><tr><th>woocommerce-db-updates</th><td><span class="v">24</span></td></tr><tr><th>gla</th><td><span class="v">15</span></td></tr><tr><th>none</th><td><span class="v">4</span></td></tr></table></td></tr><tr><th>available</th><td><span class="v">yes</span></td></tr></table></details>
+  <details><summary>action_scheduler_past_due</summary><table class="ev"><tr><th>total</th><td><span class="v">12</span></td></tr><tr><th>oldest delay</th><td><span class="v">4200</span></td></tr><tr><th>median delay</th><td><span class="v">1900</span></td></tr><tr><th>by hook</th><td><table class="ev"><tr><th>action scheduler run queue</th><td><span class="v">6</span></td></tr><tr><th>woocommerce run product attribute lookup regeneration callback</th><td><span class="v">4</span></td></tr><tr><th>wcs scheduled subscription payment</th><td><span class="v">2</span></td></tr></table></td></tr><tr><th>by group</th><td><span class="v">—</span></td></tr><tr><th>sample</th><td><table class="ev"><tr><th>#1</th><td><table class="ev"><tr><th>hook</th><td><span class="v">action_scheduler_run_queue</span></td></tr><tr><th>delay</th><td><span class="v">4200</span></td></tr></table></td></tr><tr><th>#2</th><td><table class="ev"><tr><th>hook</th><td><span class="v">wcs_scheduled_subscription_payment</span></td></tr><tr><th>delay</th><td><span class="v">1600</span></td></tr></table></td></tr></table></td></tr><tr><th>available</th><td><span class="v">yes</span></td></tr><tr><th>thresholds</th><td><table class="ev"><tr><th>#21601</th><td><span class="v">CRITICAL</span></td></tr><tr><th>#3601</th><td><span class="v">HIGH</span></td></tr><tr><th>#901</th><td><span class="v">MEDIUM</span></td></tr><tr><th>#301</th><td><span class="v">LOW</span></td></tr><tr><th>#1</th><td><span class="v">INFO</span></td></tr></table></td></tr></table></details>
+  <details><summary>pending_orders</summary><table class="ev"><tr><th>count</th><td><span class="v">7</span></td></tr><tr><th>total value</th><td><span class="v">742.81</span></td></tr><tr><th>currency</th><td><span class="v">USD</span></td></tr><tr><th>by payment method</th><td><table class="ev"><tr><th>Credit Card (Stripe)</th><td><span class="v">5</span></td></tr><tr><th>Direct bank transfer</th><td><span class="v">2</span></td></tr></table></td></tr><tr><th>by age bucket</th><td><table class="ev"><tr><th>&lt;1h</th><td><span class="v">1</span></td></tr><tr><th>1-6h</th><td><span class="v">2</span></td></tr><tr><th>6-24h</th><td><span class="v">1</span></td></tr><tr><th>1-7d</th><td><span class="v">2</span></td></tr><tr><th>&gt;7d</th><td><span class="v">1</span></td></tr></table></td></tr><tr><th>oldest</th><td><table class="ev"><tr><th>#1</th><td><table class="ev"><tr><th>id</th><td><span class="v">18041</span></td></tr><tr><th>date</th><td><span class="v">2026-08-12 09:14:00</span></td></tr><tr><th>age</th><td><span class="v">1220760</span></td></tr><tr><th>amount</th><td><span class="v">189</span></td></tr><tr><th>currency</th><td><span class="v">USD</span></td></tr><tr><th>payment method</th><td><span class="v">Direct bank transfer</span></td></tr><tr><th>status</th><td><span class="v">pending</span></td></tr></table></td></tr><tr><th>#2</th><td><table class="ev"><tr><th>id</th><td><span class="v">18122</span></td></tr><tr><th>date</th><td><span class="v">2026-08-22 17:41:00</span></td></tr><tr><th>age</th><td><span class="v">325140</span></td></tr><tr><th>amount</th><td><span class="v">74.5</span></td></tr><tr><th>currency</th><td><span class="v">USD</span></td></tr><tr><th>payment method</th><td><span class="v">Credit Card (Stripe)</span></td></tr><tr><th>status</th><td><span class="v">pending</span></td></tr></table></td></tr><tr><th>#3</th><td><table class="ev"><tr><th>id</th><td><span class="v">18190</span></td></tr><tr><th>date</th><td><span class="v">2026-08-25 08:02:00</span></td></tr><tr><th>age</th><td><span class="v">100680</span></td></tr><tr><th>amount</th><td><span class="v">132.4</span></td></tr><tr><th>currency</th><td><span class="v">USD</span></td></tr><tr><th>payment method</th><td><span class="v">Credit Card (Stripe)</span></td></tr><tr><th>status</th><td><span class="v">pending</span></td></tr></table></td></tr></table></td></tr></table></details>
+  <details><summary>failed_orders</summary><table class="ev"><tr><th>count</th><td><span class="v">3</span></td></tr><tr><th>total value</th><td><span class="v">438.98</span></td></tr><tr><th>currency</th><td><span class="v">USD</span></td></tr><tr><th>by payment method</th><td><table class="ev"><tr><th>Credit Card (Stripe)</th><td><span class="v">2</span></td></tr><tr><th>PayPal</th><td><span class="v">1</span></td></tr></table></td></tr><tr><th>by age bucket</th><td><table class="ev"><tr><th>&lt;1h</th><td><span class="v">0</span></td></tr><tr><th>1-6h</th><td><span class="v">1</span></td></tr><tr><th>6-24h</th><td><span class="v">1</span></td></tr><tr><th>1-7d</th><td><span class="v">1</span></td></tr><tr><th>&gt;7d</th><td><span class="v">0</span></td></tr></table></td></tr><tr><th>oldest</th><td><table class="ev"><tr><th>#1</th><td><table class="ev"><tr><th>id</th><td><span class="v">18163</span></td></tr><tr><th>date</th><td><span class="v">2026-08-21 11:20:00</span></td></tr><tr><th>age</th><td><span class="v">434280</span></td></tr><tr><th>amount</th><td><span class="v">249.99</span></td></tr><tr><th>currency</th><td><span class="v">USD</span></td></tr><tr><th>payment method</th><td><span class="v">Credit Card (Stripe)</span></td></tr><tr><th>status</th><td><span class="v">failed</span></td></tr></table></td></tr><tr><th>#2</th><td><table class="ev"><tr><th>id</th><td><span class="v">18156</span></td></tr><tr><th>date</th><td><span class="v">2026-08-24 19:05:00</span></td></tr><tr><th>age</th><td><span class="v">147300</span></td></tr><tr><th>amount</th><td><span class="v">89</span></td></tr><tr><th>currency</th><td><span class="v">USD</span></td></tr><tr><th>payment method</th><td><span class="v">PayPal</span></td></tr><tr><th>status</th><td><span class="v">failed</span></td></tr></table></td></tr></table></td></tr><tr><th>window days</th><td><span class="v">30</span></td></tr></table></details>
+  <details><summary>database</summary><table class="ev"><tr><th>tables</th><td><table class="ev"><tr><th>wp actionscheduler actions</th><td><table class="ev"><tr><th>exists</th><td><span class="v">yes</span></td></tr><tr><th>rows</th><td><span class="v">312044</span></td></tr><tr><th>data size</th><td><span class="v">199229440</span></td></tr><tr><th>index size</th><td><span class="v">100663296</span></td></tr><tr><th>total size</th><td><span class="v">299892736</span></td></tr></table></td></tr><tr><th>wp actionscheduler logs</th><td><table class="ev"><tr><th>exists</th><td><span class="v">yes</span></td></tr><tr><th>rows</th><td><span class="v">1072113</span></td></tr><tr><th>data size</th><td><span class="v">1059061760</span></td></tr><tr><th>index size</th><td><span class="v">347078656</span></td></tr><tr><th>total size</th><td><span class="v">1406140416</span></td></tr></table></td></tr><tr><th>wp actionscheduler claims</th><td><table class="ev"><tr><th>exists</th><td><span class="v">yes</span></td></tr><tr><th>rows</th><td><span class="v">3</span></td></tr><tr><th>data size</th><td><span class="v">16384</span></td></tr><tr><th>index size</th><td><span class="v">16384</span></td></tr><tr><th>total size</th><td><span class="v">32768</span></td></tr></table></td></tr><tr><th>wp actionscheduler groups</th><td><table class="ev"><tr><th>exists</th><td><span class="v">yes</span></td></tr><tr><th>rows</th><td><span class="v">9</span></td></tr><tr><th>data size</th><td><span class="v">16384</span></td></tr><tr><th>index size</th><td><span class="v">16384</span></td></tr><tr><th>total size</th><td><span class="v">32768</span></td></tr></table></td></tr><tr><th>wp wc orders</th><td><table class="ev"><tr><th>exists</th><td><span class="v">yes</span></td></tr><tr><th>rows</th><td><span class="v">18240</span></td></tr><tr><th>data size</th><td><span class="v">23068672</span></td></tr><tr><th>index size</th><td><span class="v">7340032</span></td></tr><tr><th>total size</th><td><span class="v">30408704</span></td></tr></table></td></tr><tr><th>wp options</th><td><table class="ev"><tr><th>exists</th><td><span class="v">yes</span></td></tr><tr><th>rows</th><td><span class="v">4120</span></td></tr><tr><th>data size</th><td><span class="v">9437184</span></td></tr><tr><th>index size</th><td><span class="v">2097152</span></td></tr><tr><th>total size</th><td><span class="v">11534336</span></td></tr></table></td></tr></table></td></tr></table></details>
+
+<footer>
+  Generated by WooOps Auditor 0.1.0 (schema 1.0.0).
+  This tool is strictly read-only: it inspects and reports, and never modifies the store.
+</footer>
+
+</div>
+</body>
+</html>

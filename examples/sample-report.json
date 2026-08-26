@@ -1,0 +1,512 @@
+{
+    "metadata": {
+        "schema_version": "1.0.0",
+        "auditor_version": "0.1.0",
+        "timestamp": 1756209600,
+        "generated_at": "2025-08-26T12:00:00+00:00",
+        "read_only": true
+    },
+    "environment": {
+        "wordpress_version": "6.5.2",
+        "woocommerce_version": "8.9.1",
+        "woocommerce_active": true,
+        "woocommerce_db_version": "8.9.1",
+        "hpos_enabled": true,
+        "php_version": "8.2.18",
+        "database_version": "10.6.17-MariaDB",
+        "wp_memory_limit": "192M",
+        "php_memory_limit": "512M",
+        "wp_debug": true,
+        "wp_cron_disabled": false,
+        "site_url": "https://demo-store.example",
+        "https": true,
+        "timezone": "UTC",
+        "active_theme": "Storefront 4.6.0",
+        "active_plugins_count": 34,
+        "woocommerce_plugins": [
+            "WooCommerce 8.9.1",
+            "WooCommerce Subscriptions 5.9.0",
+            "Google Listings and Ads 2.7.2",
+            "WooCommerce Stripe Gateway 8.1.0"
+        ],
+        "db_prefix": "wp_"
+    },
+    "score": 54,
+    "summary": {
+        "CRITICAL": 1,
+        "HIGH": 2,
+        "MEDIUM": 3,
+        "LOW": 4,
+        "INFO": 1,
+        "PASS": 0
+    },
+    "findings": [
+        {
+            "id": "database.actionscheduler_logs.bloat",
+            "category": "database",
+            "severity": "CRITICAL",
+            "title": "Unusually large actionscheduler_logs table",
+            "summary": "The table wp_actionscheduler_logs holds 1,072,113 rows and occupies 1.31 GB.",
+            "technical_details": "Row counts come from the storage engine statistics and are approximate on InnoDB.",
+            "why_it_matters": "Action Scheduler keeps completed actions and their log entries until something prunes them. Left alone the tables grow without bound, which slows every queue claim and makes backups and migrations painful.",
+            "recommended_action": "Confirm the Action Scheduler retention period for this store and check whether the cleanup job is running. Do not delete rows manually without understanding what is still queued.",
+            "evidence": {
+                "table": "wp_actionscheduler_logs",
+                "rows": 1072113,
+                "data_size": 1059061760,
+                "index_size": 347078656,
+                "total_size": 1406140416
+            }
+        },
+        {
+            "id": "action_scheduler.past_due.backlog",
+            "category": "action_scheduler",
+            "severity": "HIGH",
+            "title": "Action Scheduler queue is behind",
+            "summary": "12 pending action(s) are past their scheduled time. The oldest is 1.2 hours late (median lag 32 minutes).",
+            "technical_details": "",
+            "why_it_matters": "Past-due actions are queued work that should already have run. A sustained backlog means background processing is slower than the rate at which the store creates work, or has stopped entirely.",
+            "recommended_action": "Confirm the queue runner is executing (WP-Cron or WP-CLI), then look at whether one hook is generating more work than the queue can drain.",
+            "evidence": {
+                "past_due_count": 12,
+                "oldest_delay_seconds": 4200,
+                "median_delay_seconds": 1900,
+                "top_hooks": {
+                    "action_scheduler_run_queue": 6,
+                    "woocommerce_run_product_attribute_lookup_regeneration_callback": 4,
+                    "wcs_scheduled_subscription_payment": 2
+                }
+            }
+        },
+        {
+            "id": "database.actionscheduler_actions.bloat",
+            "category": "database",
+            "severity": "HIGH",
+            "title": "Unusually large actionscheduler_actions table",
+            "summary": "The table wp_actionscheduler_actions holds 312,044 rows and occupies 286 MB.",
+            "technical_details": "Row counts come from the storage engine statistics and are approximate on InnoDB.",
+            "why_it_matters": "Action Scheduler keeps completed actions and their log entries until something prunes them. Left alone the tables grow without bound, which slows every queue claim and makes backups and migrations painful.",
+            "recommended_action": "Confirm the Action Scheduler retention period for this store and check whether the cleanup job is running. Do not delete rows manually without understanding what is still queued.",
+            "evidence": {
+                "table": "wp_actionscheduler_actions",
+                "rows": 312044,
+                "data_size": 199229440,
+                "index_size": 100663296,
+                "total_size": 299892736
+            }
+        },
+        {
+            "id": "cron.overdue.medium",
+            "category": "cron",
+            "severity": "MEDIUM",
+            "title": "Some WP-Cron events are running late",
+            "summary": "2 scheduled event(s) are overdue; the worst is 40 minutes late.",
+            "technical_details": "",
+            "why_it_matters": "Moderate lateness is normal on low-traffic sites using the default WordPress cron, but it is worth watching.",
+            "recommended_action": "If this store depends on timely background work, move to a real system cron.",
+            "evidence": {
+                "overdue_count": 2,
+                "worst_delay_seconds": 2400
+            }
+        },
+        {
+            "id": "action_scheduler.failed.volume",
+            "category": "action_scheduler",
+            "severity": "MEDIUM",
+            "title": "Failed scheduled actions present",
+            "summary": "43 scheduled action(s) are currently marked as failed. The oldest failure is 14 days old.",
+            "technical_details": "",
+            "why_it_matters": "WooCommerce and its extensions push operational work onto Action Scheduler: order emails, stock and lookup-table updates, feed syncs, subscription renewals. A failed action is work that silently did not happen.",
+            "recommended_action": "Start with the most frequently failing hook below and identify the plugin that registers it. Failures usually share one root cause.",
+            "evidence": {
+                "failed_count": 43,
+                "oldest": 1755000000,
+                "newest": 1756204200,
+                "top_hooks": {
+                    "wc_update_product_lookup_tables": 24,
+                    "gla/jobs/update_products": 15,
+                    "some_plugin_background_sync": 4
+                }
+            }
+        },
+        {
+            "id": "action_scheduler.failed.concentration",
+            "category": "action_scheduler",
+            "severity": "MEDIUM",
+            "title": "Failures are concentrated in one hook",
+            "summary": "24 of 43 failures (56%) come from the hook \"wc_update_product_lookup_tables\".",
+            "technical_details": "",
+            "why_it_matters": "A single dominant hook usually means one broken extension rather than a general scheduler problem, which makes it much cheaper to fix.",
+            "recommended_action": "Identify the plugin registering this hook and inspect its most recent failure log entry.",
+            "evidence": {
+                "hook": "wc_update_product_lookup_tables",
+                "hook_failures": 24,
+                "failed_count": 43
+            }
+        },
+        {
+            "id": "environment.memory.below_recommended",
+            "category": "environment",
+            "severity": "LOW",
+            "title": "WordPress memory limit below the recommended 256M",
+            "summary": "WP_MEMORY_LIMIT is 192M.",
+            "technical_details": "",
+            "why_it_matters": "WooCommerce recommends 256M for stores of any real size.",
+            "recommended_action": "Consider raising WP_MEMORY_LIMIT to 256M.",
+            "evidence": {
+                "wp_memory_limit": "192M"
+            }
+        },
+        {
+            "id": "environment.wp_debug.enabled",
+            "category": "environment",
+            "severity": "LOW",
+            "title": "WP_DEBUG is enabled",
+            "summary": "WP_DEBUG is on. On a production store this can leak notices into responses and grow debug.log without bound.",
+            "technical_details": "",
+            "why_it_matters": "Debug output on a live storefront is both a disclosure risk and a disk-space risk.",
+            "recommended_action": "Disable WP_DEBUG on production, or at least set WP_DEBUG_DISPLAY to false.",
+            "evidence": {
+                "wp_debug": true
+            }
+        },
+        {
+            "id": "orders.pending.volume",
+            "category": "orders",
+            "severity": "LOW",
+            "title": "Pending orders are ageing",
+            "summary": "7 order(s) are in the pending payment status, totalling 742.81 USD. 3 of them are more than 24 hours old.",
+            "technical_details": "Value shown is the order total as recorded by WooCommerce. It is not revenue, and it is not money that was lost.",
+            "why_it_matters": "Pending means the store is still waiting for payment confirmation. Some of these are ordinary abandoned checkouts, but the ones that never resolve can also indicate a gateway callback that is not arriving, or a payment that was taken and never recorded against the order.",
+            "recommended_action": "Open the oldest pending orders listed below and reconcile them against the payment gateway dashboard. If the gateway shows a captured payment, the callback path is broken.",
+            "evidence": {
+                "pending_count": 7,
+                "total_value": 742.81,
+                "currency": "USD",
+                "stale_over_24h": 3,
+                "by_age_bucket": {
+                    "<1h": 1,
+                    "1-6h": 2,
+                    "6-24h": 1,
+                    "1-7d": 2,
+                    ">7d": 1
+                },
+                "by_payment_method": {
+                    "Credit Card (Stripe)": 5,
+                    "Direct bank transfer": 2
+                },
+                "oldest_orders": [
+                    {
+                        "id": 18041,
+                        "date": "2026-08-12 09:14:00",
+                        "age": 1220760,
+                        "amount": 189,
+                        "currency": "USD",
+                        "payment_method": "Direct bank transfer",
+                        "status": "pending"
+                    },
+                    {
+                        "id": 18122,
+                        "date": "2026-08-22 17:41:00",
+                        "age": 325140,
+                        "amount": 74.5,
+                        "currency": "USD",
+                        "payment_method": "Credit Card (Stripe)",
+                        "status": "pending"
+                    },
+                    {
+                        "id": 18190,
+                        "date": "2026-08-25 08:02:00",
+                        "age": 100680,
+                        "amount": 132.4,
+                        "currency": "USD",
+                        "payment_method": "Credit Card (Stripe)",
+                        "status": "pending"
+                    }
+                ]
+            }
+        },
+        {
+            "id": "orders.failed.volume",
+            "category": "orders",
+            "severity": "LOW",
+            "title": "Failed orders in the last 30 days",
+            "summary": "3 order(s) failed in the last 30 days, for a total attempted value of 438.98 USD.",
+            "technical_details": "Attempted value is the sum of the order totals. It is NOT revenue lost: most failed orders would not have converted.",
+            "why_it_matters": "A failed order is a checkout that did not complete at the payment step. A background level of failures is normal (declined cards, 3-D Secure abandonment). A spike, or a concentration in one gateway, usually means a misconfiguration rather than customer behaviour.",
+            "recommended_action": "Compare the failure counts per gateway below against the gateway dashboard. If one gateway dominates, check its API credentials, webhook endpoint and currency configuration.",
+            "evidence": {
+                "failed_count": 3,
+                "window_days": 30,
+                "attempted_value": 438.98,
+                "currency": "USD",
+                "by_payment_method": {
+                    "Credit Card (Stripe)": 2,
+                    "PayPal": 1
+                },
+                "by_age_bucket": {
+                    "<1h": 0,
+                    "1-6h": 1,
+                    "6-24h": 1,
+                    "1-7d": 1,
+                    ">7d": 0
+                },
+                "recent_orders": [
+                    {
+                        "id": 18163,
+                        "date": "2026-08-21 11:20:00",
+                        "age": 434280,
+                        "amount": 249.99,
+                        "currency": "USD",
+                        "payment_method": "Credit Card (Stripe)",
+                        "status": "failed"
+                    },
+                    {
+                        "id": 18156,
+                        "date": "2026-08-24 19:05:00",
+                        "age": 147300,
+                        "amount": 89,
+                        "currency": "USD",
+                        "payment_method": "PayPal",
+                        "status": "failed"
+                    }
+                ]
+            }
+        },
+        {
+            "id": "cron.disabled.unverifiable",
+            "category": "cron",
+            "severity": "INFO",
+            "title": "DISABLE_WP_CRON is true",
+            "summary": "WordPress will not trigger cron on page loads. An external system cron may be configured; that cannot be verified from inside WordPress.",
+            "technical_details": "",
+            "why_it_matters": "This is a normal, recommended production setup — but only if something outside WordPress is actually calling wp-cron.php.",
+            "recommended_action": "Confirm with the host or server admin that a system cron calls wp-cron.php on a schedule. Use the overdue-event evidence in this report as the real signal.",
+            "evidence": {
+                "disable_wp_cron": true,
+                "overdue_count": 2
+            }
+        }
+    ],
+    "checks": {
+        "environment": {
+            "wordpress_version": "6.5.2",
+            "woocommerce_version": "8.9.1",
+            "woocommerce_active": true,
+            "woocommerce_db_version": "8.9.1",
+            "hpos_enabled": true,
+            "php_version": "8.2.18",
+            "database_version": "10.6.17-MariaDB",
+            "wp_memory_limit": "192M",
+            "php_memory_limit": "512M",
+            "wp_debug": true,
+            "wp_cron_disabled": false,
+            "site_url": "https://demo-store.example",
+            "https": true,
+            "timezone": "UTC",
+            "active_theme": "Storefront 4.6.0",
+            "active_plugins_count": 34,
+            "woocommerce_plugins": [
+                "WooCommerce 8.9.1",
+                "WooCommerce Subscriptions 5.9.0",
+                "Google Listings and Ads 2.7.2",
+                "WooCommerce Stripe Gateway 8.1.0"
+            ],
+            "db_prefix": "wp_"
+        },
+        "cron": {
+            "disabled": true,
+            "alternate": false,
+            "total_events": 41,
+            "overdue": [
+                {
+                    "hook": "woocommerce_scheduled_sales",
+                    "timestamp": 1756207200,
+                    "delay": 2400
+                },
+                {
+                    "hook": "wc_admin_daily",
+                    "timestamp": 1756207800,
+                    "delay": 1800
+                }
+            ],
+            "next_events": [],
+            "woocommerce_hooks": 11,
+            "doing_cron_stale": null
+        },
+        "action_scheduler_failed": {
+            "total": 43,
+            "oldest": 1755000000,
+            "newest": 1756204200,
+            "by_hook": {
+                "wc_update_product_lookup_tables": 24,
+                "gla/jobs/update_products": 15,
+                "some_plugin_background_sync": 4
+            },
+            "by_group": {
+                "woocommerce-db-updates": 24,
+                "gla": 15,
+                "none": 4
+            },
+            "available": true
+        },
+        "action_scheduler_past_due": {
+            "total": 12,
+            "oldest_delay": 4200,
+            "median_delay": 1900,
+            "by_hook": {
+                "action_scheduler_run_queue": 6,
+                "woocommerce_run_product_attribute_lookup_regeneration_callback": 4,
+                "wcs_scheduled_subscription_payment": 2
+            },
+            "by_group": [],
+            "sample": [
+                {
+                    "hook": "action_scheduler_run_queue",
+                    "delay": 4200
+                },
+                {
+                    "hook": "wcs_scheduled_subscription_payment",
+                    "delay": 1600
+                }
+            ],
+            "available": true,
+            "thresholds": {
+                "21600": "CRITICAL",
+                "3600": "HIGH",
+                "900": "MEDIUM",
+                "300": "LOW",
+                "0": "INFO"
+            }
+        },
+        "pending_orders": {
+            "count": 7,
+            "total_value": 742.81,
+            "currency": "USD",
+            "by_payment_method": {
+                "Credit Card (Stripe)": 5,
+                "Direct bank transfer": 2
+            },
+            "by_age_bucket": {
+                "<1h": 1,
+                "1-6h": 2,
+                "6-24h": 1,
+                "1-7d": 2,
+                ">7d": 1
+            },
+            "oldest": [
+                {
+                    "id": 18041,
+                    "date": "2026-08-12 09:14:00",
+                    "age": 1220760,
+                    "amount": 189,
+                    "currency": "USD",
+                    "payment_method": "Direct bank transfer",
+                    "status": "pending"
+                },
+                {
+                    "id": 18122,
+                    "date": "2026-08-22 17:41:00",
+                    "age": 325140,
+                    "amount": 74.5,
+                    "currency": "USD",
+                    "payment_method": "Credit Card (Stripe)",
+                    "status": "pending"
+                },
+                {
+                    "id": 18190,
+                    "date": "2026-08-25 08:02:00",
+                    "age": 100680,
+                    "amount": 132.4,
+                    "currency": "USD",
+                    "payment_method": "Credit Card (Stripe)",
+                    "status": "pending"
+                }
+            ]
+        },
+        "failed_orders": {
+            "count": 3,
+            "total_value": 438.98,
+            "currency": "USD",
+            "by_payment_method": {
+                "Credit Card (Stripe)": 2,
+                "PayPal": 1
+            },
+            "by_age_bucket": {
+                "<1h": 0,
+                "1-6h": 1,
+                "6-24h": 1,
+                "1-7d": 1,
+                ">7d": 0
+            },
+            "oldest": [
+                {
+                    "id": 18163,
+                    "date": "2026-08-21 11:20:00",
+                    "age": 434280,
+                    "amount": 249.99,
+                    "currency": "USD",
+                    "payment_method": "Credit Card (Stripe)",
+                    "status": "failed"
+                },
+                {
+                    "id": 18156,
+                    "date": "2026-08-24 19:05:00",
+                    "age": 147300,
+                    "amount": 89,
+                    "currency": "USD",
+                    "payment_method": "PayPal",
+                    "status": "failed"
+                }
+            ],
+            "window_days": 30
+        },
+        "database": {
+            "tables": {
+                "wp_actionscheduler_actions": {
+                    "exists": true,
+                    "rows": 312044,
+                    "data_size": 199229440,
+                    "index_size": 100663296,
+                    "total_size": 299892736
+                },
+                "wp_actionscheduler_logs": {
+                    "exists": true,
+                    "rows": 1072113,
+                    "data_size": 1059061760,
+                    "index_size": 347078656,
+                    "total_size": 1406140416
+                },
+                "wp_actionscheduler_claims": {
+                    "exists": true,
+                    "rows": 3,
+                    "data_size": 16384,
+                    "index_size": 16384,
+                    "total_size": 32768
+                },
+                "wp_actionscheduler_groups": {
+                    "exists": true,
+                    "rows": 9,
+                    "data_size": 16384,
+                    "index_size": 16384,
+                    "total_size": 32768
+                },
+                "wp_wc_orders": {
+                    "exists": true,
+                    "rows": 18240,
+                    "data_size": 23068672,
+                    "index_size": 7340032,
+                    "total_size": 30408704
+                },
+                "wp_options": {
+                    "exists": true,
+                    "rows": 4120,
+                    "data_size": 9437184,
+                    "index_size": 2097152,
+                    "total_size": 11534336
+                }
+            }
+        }
+    },
+    "errors": []
+}
