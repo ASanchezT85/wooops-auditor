@@ -177,8 +177,14 @@ Branched from `main`. **Not merged.** No force-push. `main` is untouched.
 ```
 8b4cfee  fix: stop persisting admin audit reports in public uploads
 9e4d9d5  test: cover authenticated report delivery
-924ee4a  docs: document hardened report handling
+         docs: document hardened report handling   (+ a follow-up fixing this list)
 ```
+
+The two documentation commits are the remaining ones on the branch; run
+`git log --oneline main..fix/v0.1-report-security-hardening` for their exact
+hashes. They were left unpinned on purpose: a commit cannot contain its own
+hash, and the first attempt to pin it by amending required a force-push, which
+the task brief prohibited. No further history was rewritten.
 
 
 ## 13. Git status
