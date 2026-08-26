@@ -16,7 +16,7 @@ use WooOps\Auditor\Store\StoreGateway;
 
 final class AuditRunner
 {
-    public const VERSION = '0.1.0';
+    public const VERSION = '0.1.1';
 
     /** @var list<CheckInterface> */
     private array $checks;

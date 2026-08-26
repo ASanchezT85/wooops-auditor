@@ -1,227 +1,228 @@
-# Handoff — WooOps Auditor v0.1
+# Handoff — WooOps Auditor v0.1 (security hardening)
 
 Self-contained status document. Assume the reader saw none of the build session.
-Last updated: 2026-08-26.
+Last updated: 2026-08-26, after the report-security hardening pass.
 
 ---
 
 ## 1. Executive summary
 
-WooOps Auditor v0.1 is **built, tested, validated against a real store, and documented**. It is a WordPress/WooCommerce plugin that runs seven **read-only** operational checks and produces two reports: a versioned JSON document and a standalone HTML report.
+WooOps Auditor v0.1 is a WordPress/WooCommerce plugin that runs seven **read-only** operational checks against a store and produces a versioned JSON document and a standalone HTML report. It modifies nothing, makes no outbound requests, and collects no PII or secrets.
 
-It modifies nothing in the store. It makes no outbound network requests. It collects no PII and no secrets.
+This pass was **security hardening only**. No new product, no v0.2, no change to the seven checks or their thresholds.
 
-It has been run against a real WooCommerce 11.0.1 staging store (§7). That run found and fixed **three false positives**, confirmed the HPOS and legacy SQL paths return identical numbers, and verified the monetary figures by hand. The staging store was deleted afterwards at the owner's request; the evidence and reproduction steps live in `docs/TESTING.md`.
+The issue fixed: audit reports used to be written into `wp-content/uploads/wooops-audit/` and "protected" by an `.htaccess` deny rule. That is not a control — nginx ignores `.htaccess`, and the files sat inside the web root either way. Reports describe exactly how a live store is failing, so leaving them there was the most serious weakness in v0.1.
 
-The repository is public on GitHub under **GPL-2.0-or-later**: `https://github.com/ASanchezT85/wooops-auditor`. The licence choice is deliberate: the plugin builds on WordPress/WooCommerce, GPL is the only licence that allows a future wordpress.org listing, and the business case does not live in the plugin code — it lives in the multi-store history and alerting that a future backend would provide, which the GPL does not reach.
+Now the admin screen never writes a report at all: a download re-runs the audit, renders it in memory, and streams it to the authenticated browser. WP-CLI writes a file only when the operator asks for one, and its default location moved out of the web root.
 
-## 2. Current status
+Verified by 13 new unit tests (58 total, all green) **and** by driving the real admin handlers through a live WordPress install with real users, real capabilities and real nonces.
+
+## 2. Security issue corrected
 
 | | |
 |---|---|
-| Location | `C:\laragon\www\wooops-auditor` |
-| Remote | `https://github.com/ASanchezT85/wooops-auditor.git` |
-| Branch | `main` (default); `feature/wooops-auditor-v0.1` still present |
-| Commits | 19, all pushed; tagged `v0.1.0` |
-| Version | 0.1.0, JSON schema 1.0.0 |
-| Tests | 45 tests, 111 assertions, **all passing** (~35 ms) |
-| Staging validation | Done 2026-08-26 against WooCommerce 11.0.1; store since deleted |
-| Runtime deps | none |
-| Dev deps | PHPUnit 10.5 |
-| Requirements | PHP 8.1+, WordPress 6.x, WooCommerce; HPOS on or off |
-| Definition of Done | every box in the original plan is met (§13) |
+| **Issue** | Audit reports persisted under `wp-content/uploads/wooops-audit/`, inside the web root, guarded only by an `.htaccess` deny rule and an empty `index.html`. |
+| **Why it mattered** | `.htaccess` is ignored by nginx entirely. Even on Apache, the report — which enumerates a store's operational failures, order IDs, amounts and table sizes — was one server misconfiguration or one guessed filename away from being public. |
+| **Severity** | Information disclosure. No authentication bypass: the *admin download link* was always capability- and nonce-checked. The exposure was the file left behind, not the endpoint. |
+| **Fix** | Admin reports are generated in memory and streamed; nothing is persisted. The CLI default moved to a private directory outside the web root. `.htaccess` is no longer claimed as an access control anywhere. |
 
-## 3. Repository structure
+## 3. Before / after
+
+**Before**
 
 ```
-wooops-auditor/
-├── wooops-auditor.php          plugin bootstrap, autoloader, HPOS declaration, CLI + admin wiring
-├── composer.json / phpunit.xml
-├── readme.md                   agency-facing pitch + install/use
-├── src/
-│   ├── Audit/                  Severity, Finding, AuditResult (JSON schema), HealthScore, AuditRunner
-│   ├── Checks/                 CheckInterface + the seven checks
-│   ├── Store/                  StoreGateway (interface), WordPressGateway (real), ArrayGateway (fixtures)
-│   ├── Report/                 ReporterInterface, JsonReporter, HtmlReporter
-│   ├── Support/                Format (durations/bytes/money), ReportWriter (protected output dir)
-│   ├── WPCLI/AuditCommand.php
-│   └── Admin/Page.php
-├── templates/report.php        the standalone HTML report
-├── tests/                      bootstrap, Fixtures, ChecksTest, ReportingTest
-├── bin/generate-sample.php
-├── examples/                   sample-report.html + sample-report.json (54/100 demo store)
-└── docs/                       ARCHITECTURE, CHECKS, SECURITY, TESTING, LIMITATIONS, this file
+Admin: Run Audit  → render HTML + JSON → write both into wp-content/uploads/wooops-audit/
+                  → store file paths in the wooops_last_audit option
+       Download   → capability + nonce → readfile() the stored path
+CLI:   --format   → write into wp-content/uploads/wooops-audit/ by default
 ```
 
-## 4. Implemented checks
-
-| # | Key | Emits |
-|---|---|---|
-| 01 | `environment` | WooCommerce inactive (CRITICAL, stops the check), pending DB schema update, low **effective** memory limit, no HTTPS (INFO on local/staging hostnames), `WP_DEBUG` |
-| 02 | `cron` | Overdue events (ladder 15 min → 6 h), stale `doing_cron` lock, `DISABLE_WP_CRON` as INFO-only |
-| 03 | `action_scheduler_failed` | Failed-action volume (ladder 1/10/50/500) + dominant-hook concentration |
-| 04 | `action_scheduler_past_due` | Past-due backlog by oldest delay, and whether it is a real backlog or a few stuck actions |
-| 05 | `pending_orders` | Count, value, age buckets, ten oldest (no PII); severity from the count older than 24 h |
-| 06 | `failed_orders` | Last 30 days: volume + gateway concentration; value labelled *attempted*, never *lost* |
-| 07 | `database` | Action Scheduler + order table rows/size; custom `$wpdb` prefix handled |
-
-All thresholds are class constants and documented in `docs/CHECKS.md`.
-
-## 5. Architecture decisions
-
-1. **`StoreGateway` separates facts from judgement.** Everything touching WordPress/SQL is behind one interface; the checks contain only the severity logic. This is why the tests need no WordPress and run in ~35 ms, and why the demo report is generated from fixtures rather than anyone's store.
-2. **Aggregation in SQL.** `COUNT`/`SUM`/`GROUP BY`/`information_schema`. Row-reading is bounded (`LIMIT 1000` for the past-due median sample, `LIMIT 5000` for age buckets, `LIMIT 10` for the order listing). Nothing loads a full order set.
-3. **A single `now()` per run**, captured by the gateway, so a slow audit stays internally consistent.
-4. **A failing check does not fail the audit.** It is caught, recorded in `errors[]`, and surfaced as an INFO finding saying the domain is *unknown*, not healthy.
-5. **Health score changed from the original plan.** Additive penalties (`-25` per CRITICAL and so on, summed over every finding) floor any store with more than one real problem at 0/100 — the demo store scored 0 and could not be distinguished from a catastrophe. It is now `100 - Σ(worst finding per category)`, same penalty ladder. The plan's own worked example (72/100 with 1 CRITICAL + 2 HIGH + 3 MEDIUM + 1 LOW) is not reproducible under a purely additive rule either.
-6. **No new dependencies.** Plain PSR-4 autoloader so the plugin works from a bare checkout.
-
-## 6. Tests
-
-`vendor/bin/phpunit` — **45 tests, 111 assertions, all green.**
-
-Covered: all seven checks across healthy/degraded/broken states; the false-positive guards (`DISABLE_WP_CRON` alone, seconds-of-lag, Action Scheduler absent, default memory limit, local hostnames, straggler vs backlog); custom DB prefix; HPOS on/off; JSON schema shape; HTML standalone-ness; HTML XSS escaping; severity ordering; score bounds; and two **semantic** guards that fail the build if the report ever calls pending or failed order value "revenue lost".
-
-Not unit-tested: `WordPressGateway`, `AuditCommand`, `Admin\Page` — they need a real WordPress; mocking `wpdb` would only assert the SQL matches itself. They are covered by the staging run instead (§7).
-
-## 7. Staging validation (2026-08-26)
-
-Purpose-built store: WordPress + **WooCommerce 11.0.1**, MySQL 8.4, PHP 8.3, custom table prefix `shop7x_`, plugin symlinked in so the real code ran.
-
-**Clean install → 100/100**, zero actionable findings — after fixing three false positives the first run exposed:
-
-| Found | Cause | Fix |
-|---|---|---|
-| `environment.memory.low` HIGH on a healthy store | WordPress defaults `WP_MEMORY_LIMIT` to 40M and only ever *raises* the ini limit, never lowers it. The check judged the constant alone while PHP was set to `-1` (unlimited) | Judge the **effective** limit: `max(php, wp)`, unlimited when PHP reports `-1` |
-| `environment.https.missing` HIGH on `http://wooops-staging.test` | No notion of local/staging hostnames | INFO for `localhost`, `127.0.0.1`, `::1`, `.test`, `.local`, `.localhost`, `.example`, `.invalid` |
-| The auditor listed *itself* under "WooCommerce plugins" | The name filter matches `woo` | Skip the plugin's own directory |
-
-Each now has a regression test.
-
-**Seeded-failure store → 33/100.** 18 orders, 43 failed actions, 12 past-due actions, every cron event backdated 8 h 20 m, Action Scheduler log table inflated to 2.74 M rows / 298 MB. Every seeded failure was detected:
+**After**
 
 ```
-CRITICAL  cron.overdue.critical                 12 events overdue, worst 8.4 h late
-CRITICAL  database.actionscheduler_logs.bloat   2,741,404 rows, 298.02 MB
-HIGH      action_scheduler.past_due.backlog     32 past due, oldest 1.2 h (median 3 min)
-MEDIUM    action_scheduler.failed.volume        43 failed, oldest 13.8 days
-MEDIUM    action_scheduler.failed.concentration 24 of 43 (56%) in one hook
-MEDIUM    orders.failed.volume                  10 failed in 30 days, 1,420.18 USD attempted
-MEDIUM    orders.failed.gateway_concentration   9 of 10 (90%) Stripe
-LOW       orders.pending.volume                 7 pending, 821.75 USD, 4 older than 24 h
+Admin: Run Audit  → audit in memory → store timestamp/score/summary only (no paths)
+       Download   → capability + nonce → audit runs again in memory
+                  → ReportResponse (bytes + headers) → streamed as an attachment
+                  → nothing written to disk, ever
+CLI:   (no flags) → terminal summary, writes nothing
+       --stdout   → report to STDOUT
+       --format   → private dir under sys_get_temp_dir() (0700 dir / 0600 file)
+       --output   → exactly where the operator said
 ```
 
-- Money figures verified by hand against the seed data: `821.75` and `1,420.18` are exact.
-- The 30-day window correctly excluded an order seeded 40 days back.
-- **HPOS vs legacy**: the run was repeated with HPOS enabled and the orders backfilled into `shop7x_wc_orders`. Identical counts and totals. Two separate SQL implementations, same answers.
-- **Performance**: 1.3–1.4 s for the full seven-check audit against the 2.74 M-row table.
-- **Privacy**: the generated JSON was grepped for `email|phone|first_name|last_name|billing_address|postcode|auth_key|password|secret` — two hits, both the word "emails" inside explanatory prose.
+**Breaking change:** the CLI default output directory moved from
+`wp-content/uploads/wooops-audit/` to `sys_get_temp_dir()/wooops-audit`. Any
+script that assumed the old path must pass `--output` explicitly. Files left in
+the old directory by earlier versions are **not** cleaned up — a read-only
+auditor should not delete things — so remove them by hand.
 
-That run also produced one precision improvement: 32 past-due actions with a **median lag of 3 minutes** but an oldest of 1.2 hours is one stuck action, not a stalled queue. The finding now says so explicitly when the median is small relative to the oldest.
+**Behavioural consequence, by design:** because nothing is stored, an admin
+download re-runs the audit. The downloaded report reflects the store at download
+time and can differ from the score shown for the last run. Each report carries
+its own timestamp, and the admin screen says so.
 
-The staging store and its database were deleted afterwards at the owner's request. Reproduction steps are in `docs/TESTING.md`.
+## 4. Files changed
 
-## 8. Commands
+| File | Change |
+|---|---|
+| `src/Admin/Page.php` | Rewritten delivery path: capability → nonce → in-memory audit → stream. Stores metadata only. `header()`, `echo` and `exit` moved behind overridable seams (`sendHeader`/`emit`/`terminate`) so the path is testable. Class is no longer `final`. |
+| `src/Report/ReportResponse.php` | **New.** Value object: filename, content type, body, plus `headers()` including `X-Content-Type-Options: nosniff`. Rejects any format but `html`/`json`. |
+| `src/Support/ReportWriter.php` | Default directory no longer consults `wp_upload_dir()`; uses `sys_get_temp_dir()/wooops-audit` at 0700, files at 0600. Dropped the `.htaccess`/`index.html` theatre. |
+| `src/WPCLI/AuditCommand.php` | Behaviour unchanged; documentation corrected to describe the new default and the operator's responsibility for `--output`. |
+| `tests/AdminSecurityTest.php` | **New**, 13 tests (see §5). |
+| `tests/WordPressStubs.php` | **New.** Minimal stubs for the WordPress functions the admin path calls, plus a mutable state object. |
+| `tests/bootstrap.php` | Loads the stubs. |
+| `docs/SECURITY.md` | "Where reports go" replaced by "How reports are delivered" + "What is stored between runs". All `.htaccess`-as-protection claims removed. |
+| `docs/ARCHITECTURE.md` | New section: rendering is separate from persisting. |
+| `docs/TESTING.md` | New coverage list, the hardening validation transcript, the mutation check. |
+| `docs/LIMITATIONS.md` | Replaced the nginx/`.htaccess` caveat with the re-run trade-off, the CLI persistence rule, POSIX modes on Windows, and the orphaned legacy directory. |
+| `readme.md` | Corrected the "reports land in wp-content/uploads" line and the writes list; test counts updated. |
 
-```bash
-composer install
-vendor/bin/phpunit                 # tests
-php bin/generate-sample.php        # regenerate examples/
+Untouched, deliberately: the seven checks, their thresholds, `AuditRunner`, `AuditResult`, `HealthScore`, both reporters, `templates/report.php`, and the sample artifacts.
 
-wp wooops audit                    # terminal summary
-wp wooops audit --format=json|html|both
-wp wooops audit --format=html --output=/tmp/report.html
-wp wooops audit --format=json --stdout
-```
+## 5. New tests
 
-Default output directory: `wp-content/uploads/wooops-audit/` (created 0750, with `.htaccess` deny + `index.html`).
+`tests/AdminSecurityTest.php` — 13 tests:
 
-## 9. Example outputs
+*Authorization*: download refused without `manage_woocommerce`; run refused without it (and stores nothing); download refused with the capability but an invalid nonce; run refused likewise. Capability alone is not enough; a nonce alone is not enough.
 
-`examples/sample-report.json` and `examples/sample-report.html` — fictional store, clock pinned, **54/100**, 10 findings (9 actionable). Generated from `tests/Fixtures.php`, deliberately *not* from the staging store, so the committed sample stays byte-reproducible.
+*Input*: an unknown `format` (`pdf`) is refused.
 
-JSON top level:
+*Delivery*: HTML download streams the report with `Content-Type: text/html; charset=utf-8`, an `attachment` `Content-Disposition` whose filename matches `wooops-audit-YYYY-MM-DD-HHMMSS.html`, a correct `Content-Length`, and `X-Content-Type-Options: nosniff`; JSON download streams valid JSON carrying the schema version with the JSON content type; the response is marked no-cache.
 
-```json
-{ "metadata": { "schema_version": "1.0.0", "auditor_version": "0.1.0", "timestamp": 1787745600, "read_only": true },
-  "environment": {}, "score": 54, "summary": {}, "findings": [], "checks": {}, "errors": [] }
-```
+*Persistence*: the full admin flow (run + both downloads) leaves the filesystem byte-identical; `wooops_last_audit` has exactly the keys `timestamp`, `score`, `summary` and its serialised value contains none of `path`, `file`, `http`, `uploads`, `.html`, `.json`, `doctype`; and a static assertion that `src/Admin/Page.php` mentions none of `ReportWriter`, `file_put_contents`, `fopen`, `readfile`, `wp_upload_dir`.
 
-Each finding: `id`, `category`, `severity`, `title`, `summary`, `technical_details`, `why_it_matters`, `recommended_action`, `evidence`.
+*Response object*: filename derives from the audit timestamp; anything but HTML/JSON throws.
 
-## 10. Known limitations
+**Mutation-checked.** Deleting the capability and nonce checks from
+`Page::authorize()` turns four of these tests red; restoring them turns them
+green. An authorization test that passes without authorization is worthless, so
+this was verified rather than assumed.
 
-Full list in `docs/LIMITATIONS.md`. The ones that matter commercially:
-
-- `DISABLE_WP_CRON = true` does not prove cron is broken (an external system cron is invisible to WordPress).
-- A pending order proves neither a received nor a lost payment.
-- Failed-order value is *attempted* value, not revenue lost.
-- Failed actions are historical; a big count can describe an incident fixed months ago.
-- `TABLE_ROWS` is an InnoDB estimate.
-- **No baseline and no history**, so the auditor cannot say whether today's numbers are normal *for this store*. This is the biggest gap between v0.1 and the monitoring product it is meant to inform.
-- Thresholds are heuristics validated against exactly **one** store.
-
-## 11. Bugs, debt, and one published error that was corrected
-
-No known bugs in the code.
-
-**Corrected error (2):** the demo fixture's pinned clock was `1756209600`, which is **2025**-08-26, not 2026 as its own comment claimed. Every generated sample report was therefore dated a year in the past — spotted while rendering the readme screenshot. Fixed to `1787745600`; the sample was regenerated.
-
-**Corrected error (1):** `docs/SECURITY.md` claimed the broad write-keyword grep returned "exactly two hits". It returns **five** — the original number came from a filtered count and was wrong as published (commit `ac8cd28`). Fixed in `ed110d1`: the docs now name all five (four are prose inside finding text, the fifth is the docblock asserting the guarantee), and both the readme and SECURITY.md now lead with a *strict* grep covering real SQL writes and WordPress/WooCommerce write APIs, which returns nothing. All three grep variants were executed and confirmed before publishing.
-
-Debt:
-
-- `WordPressGateway` has no unit tests. It is exercised end-to-end against a real store, which is the meaningful check, but a regression there would not be caught by CI — and there is no CI.
-- The legacy (non-HPOS) order queries use `postmeta` subqueries for the sample listing; correct, but slower than the HPOS path on large legacy stores.
-- The `.htaccess` protecting the report directory is inert on nginx.
-- `ArrayGateway`'s override merge has a special case for list-shaped keys (`cron.overdue`, `tables`) because `array_replace_recursive` merges lists index-wise. Works, tested, but it is the one piece of fixture code that will surprise someone.
-- The admin page runs the audit synchronously in a request.
-
-## 12. Intentionally NOT implemented
-
-Stripe/PayPal APIs, payment reconciliation, webhook or email monitoring, synthetic checkout tests, uptime monitoring, SaaS backend, Next.js/React, accounts, auth, billing, multi-tenant, Redis, external queues, PostgreSQL, mobile, AI/LLM, Slack/Telegram/SMS notifications, cloud monitoring, remote agents, and any automatic fix. Also no history, trending, or scheduling of its own.
-
-## 13. Definition of Done
-
-Installs ✔ · modifies no business data ✔ · seven checks ✔ · HPOS on and off ✔ (verified identical on a real store) · legacy orders ✔ · AS failures ✔ · AS overdue ✔ · pending orders ✔ · failed orders ✔ · AS tables ✔ · custom DB prefix ✔ (`shop7x_`, on a real store) · no huge datasets loaded ✔ · valid JSON ✔ · standalone HTML ✔ · health score documented ✔ · findings explain and recommend ✔ · no PII/secrets ✔ (grepped on real output) · tests exist ✔ · tests pass ✔ · sample report ✔ · docs ✔ · this handoff ✔
-
-## 14. What is still missing
-
-Nothing blocks using the tool. These are the open items:
-
-**Repository hygiene**
-- The remote default branch is `feature/wooops-auditor-v0.1`. If this repo is going to be shown to agencies, it should have a `main`.
-
-**Product validation (the real gap)**
-- Run against **two or three real client stores** with different plugin stacks. All three false positives so far came from one *clean* install; a store with forty plugins will surface more.
-- Record which findings a human calls noise, and correct the thresholds in the check constants and `docs/CHECKS.md`.
-- Then put a report in front of an agency and watch **which finding they read first**. That, not the code, decides the v0.2 scope.
-
-**Known v0.2 candidate**
-- Persisting past runs so the auditor can report *change* rather than absolute numbers. It is the single most valuable missing capability and the thing that turns this from an audit into monitoring.
-
-## 15. Git
-
-Branch `feature/wooops-auditor-v0.1`, 14 commits, clean working tree, 1 commit ahead of `origin`.
+## 6. Test totals
 
 ```
-66f65e3 feat: bootstrap WooOps auditor plugin
-611eec9 feat: add audit result model, severity ladder and health score
-9e48700 feat: add read-only store gateways (WordPress + in-memory)
-fb418ce feat: implement environment and WP-Cron checks
-c865a4b feat: inspect Action Scheduler failed and past-due actions
-f34bd1d feat: add pending and failed order health checks
-5f58987 feat: add Action Scheduler table size diagnostics
-68a3a61 feat: generate JSON and standalone HTML reports
-c719a05 feat: add wp wooops audit command and minimal admin screen
-d56009c test: cover core audit scenarios and report guarantees
-9d37b6e chore: add generated sample audit report
-ac8cd28 docs: document WooOps auditor v0.1
-7da8d8e fix: remove three false positives found on a real WooCommerce store
-ed110d1 docs: rewrite readme as an agency-facing pitch   ← not pushed
+Before this pass:  45 tests, 111 assertions
+After this pass:   58 tests, 148 assertions
 ```
+
+All passing, ~40 ms. Every pre-existing guarantee still holds: valid JSON, standalone HTML, XSS escaping, severity ordering, health score bounds, and the two semantic guards ("pending is not a lost payment", "attempted value is not revenue lost").
+
+## 7. Manual WordPress validation
+
+A staging store was built for this: WordPress + **WooCommerce 11.0.1**, MySQL 8.4, PHP 8.3, custom prefix `shop7x_`, plugin symlinked in. `validate-admin.php` drove the real handlers through real WordPress — real `wp_set_current_user`, real `current_user_can`, real `wp_create_nonce`/`check_admin_referer`:
+
+```
+anonymous download refused ....... OK
+subscriber download refused ...... OK   (real user, no manage_woocommerce)
+admin + invalid nonce refused .... OK
+admin HTML download .............. OK
+    Content-Type: text/html; charset=utf-8
+    Content-Disposition: attachment; filename="wooops-audit-2026-08-26-181839.html"
+    Content-Length: 20278
+    X-Content-Type-Options: nosniff
+admin JSON download ............. OK
+    Content-Type: application/json; charset=utf-8
+    Content-Disposition: attachment; filename="wooops-audit-2026-08-26-181839.json"
+stored option keys .............. timestamp, score, summary
+stored option payload ........... {"timestamp":1787768319,"score":100,"summary":{"CRITICAL":0,"HIGH":0,"MEDIUM":0,"LOW":0,"INFO":2,"PASS":5}}
+no new files under uploads ...... OK (7 files, unchanged)
+no uploads/wooops-audit dir ..... OK
+```
+
+Not done through a browser: no clicking, no login. The handlers were invoked directly inside WordPress with the current user set, which exercises the same capability and nonce code paths. The visual admin screen itself (buttons, layout) has not been eyeballed since the change.
+
+## 8. Filesystem validation
+
+After the admin flow **and** all five CLI invocations, `wp-content/uploads` contained only WooCommerce's own files:
+
+```
+wp-content/uploads/woocommerce-placeholder*.webp   (5 files)
+wp-content/uploads/woocommerce_uploads/.htaccess
+wp-content/uploads/woocommerce_uploads/index.html
+```
+
+No `wooops-audit` directory. The stored option was read straight out of MySQL and holds `timestamp`, `score`, `summary` and nothing else. CLI reports landed in `C:\Users\...\Temp\wooops-audit\`, outside the web root.
+
+## 9. WP-CLI validation
+
+| Command | Result |
+|---|---|
+| `wp wooops audit` | Terminal summary, 100/100, writes nothing |
+| `wp wooops audit --format=json --stdout` | Valid JSON to STDOUT |
+| `wp wooops audit --format=html` | Written to the private temp directory |
+| `wp wooops audit --format=html --output=<path>` | Written exactly there |
+| `wp wooops audit --format=both` | Both files, private temp directory |
+
+No CLI behaviour was removed. Only the default destination changed.
+
+## 10. CI status
+
+**The CI workflow exists and is technically correct** — `.github/workflows/tests.yml`, PHP 8.1/8.2/8.3 matrix, `composer install`, `vendor/bin/phpunit`, plus a sample-report reproducibility check.
+
+**It does not run.** The GitHub account is locked for billing: a manual dispatch reached the runner and returned *"The job was not started because your account is locked due to a billing issue."* That is account-level, so making the repository public did not lift it. The workflow is therefore left on `workflow_dispatch` only, so a public repo is not stamped with a red X on every commit. **Automatic CI is not working; do not claim otherwise.**
+
+**The active gate is local**: `bin/hooks/pre-push` (`git config core.hooksPath bin/hooks`) runs the full suite and the sample-report reproducibility check before any push leaves the machine. It ran and passed on every push in this pass.
+
+## 11. Branch
+
+```
+fix/v0.1-report-security-hardening
+```
+
+Branched from `main`. **Not merged.** No force-push. `main` is untouched.
+
+## 12. Commits
+
+```
+8b4cfee  fix: stop persisting admin audit reports in public uploads
+9e4d9d5  test: cover authenticated report delivery
+         docs: document hardened report handling   (+ a follow-up fixing this list)
+```
+
+The two documentation commits are the remaining ones on the branch; run
+`git log --oneline main..fix/v0.1-report-security-hardening` for their exact
+hashes. They were left unpinned on purpose: a commit cannot contain its own
+hash, and the first attempt to pin it by amending required a force-push, which
+the task brief prohibited. No further history was rewritten.
+
+
+## 13. Git status
+
+Working tree clean, branch pushed to `origin`. Repository: `https://github.com/ASanchezT85/wooops-auditor`, public, GPL-2.0-or-later, default branch `main`, `v0.1.0` tagged on the pre-hardening state.
+
+## 14. Known limitations
+
+- An admin download **re-runs the audit**, so it can differ from the score displayed for the last run. That is the cost of storing nothing.
+- `--output` writes wherever it is told. Keeping that path out of the web root is the operator's responsibility.
+- Directory/file modes 0700/0600 are POSIX. On Windows they are advisory; the temp directory ACL is the real protection.
+- Files left in `wp-content/uploads/wooops-audit/` by earlier versions are not removed. The plugin no longer creates or reads that directory; clean it up by hand.
+- The admin screen still runs the audit synchronously in a request. On a very large store, prefer WP-CLI.
+- The WordPress stubs in `tests/` are not a WordPress test suite. They assert how the plugin *uses* capability/nonce/header APIs, not how WordPress implements them; the live-install validation in §7 covers the rest.
+- Everything in `docs/LIMITATIONS.md` still applies: thresholds are heuristics validated against one store.
+
+## 15. Bugs discovered
+
+None. No defect was found in the seven checks during this pass, and none of their logic or thresholds was touched.
 
 ## 16. Exact next recommended step
 
-1. Repo hygiene is done: `main` is default, `v0.1.0` is tagged, the repo is public under GPL-2.0-or-later, and CI runs again.
-2. The only step that matters now: **run it against real client stores** and collect false positives. The tool is finished enough; what it lacks is evidence about which of its findings agencies are willing to pay to be told about.
+**Open a pull request from `fix/v0.1-report-security-hardening` into `main`, review the diff, merge, and tag `v0.1.1`.** The hardening is the last engineering work planned for v0.1.
+
+Then stop building and go get evidence: run the auditor against **2–3 real client stores** with different plugin stacks, record every finding a human would call noise, and correct the thresholds. What agencies read first in that report decides the scope of v0.2 — not this codebase.
+
+---
+
+## Appendix — the project before this pass
+
+Unchanged by the hardening, repeated here so this document stands alone.
+
+**The seven checks.** `environment` (WooCommerce inactive, pending DB schema update, low *effective* memory limit, no HTTPS — INFO on local/staging hostnames, `WP_DEBUG`); `cron` (overdue events on a 15 min → 6 h ladder, stale `doing_cron` lock, `DISABLE_WP_CRON` as INFO only); `action_scheduler_failed` (volume ladder 1/10/50/500 + dominant-hook concentration); `action_scheduler_past_due` (severity from the oldest delay, and whether it is a backlog or a few stuck actions); `pending_orders` (count, value, age buckets, ten oldest without PII); `failed_orders` (last 30 days, volume + gateway concentration, value labelled *attempted*); `database` (Action Scheduler and order table rows/size, custom `$wpdb` prefix handled). Thresholds are class constants, documented in `docs/CHECKS.md`.
+
+**Architecture.** `StoreGateway` separates facts from judgement: everything touching WordPress/SQL sits behind it (`WordPressGateway` for the real store, `ArrayGateway` for fixtures), and the checks hold only the severity logic. That is why the suite needs no WordPress. Aggregation happens in SQL, with every row-reading query explicitly bounded. A check that throws is caught and reported as *unknown*, never as healthy.
+
+**Health score.** `100 - Σ(penalty of the worst finding in each category)`, floored at 0; CRITICAL 25, HIGH 12, MEDIUM 5, LOW 2, INFO/PASS 0. Changed from the original plan's purely additive rule, which floored any store with more than one real problem at 0/100.
+
+**Earlier staging validation (also 2026-08-26).** Against WooCommerce 11.0.1: a clean install scored 100/100 with zero false positives — after fixing three the first run exposed (WP_MEMORY_LIMIT judged alone, HTTPS on local hostnames, the auditor listing itself). A store with seeded failures scored 33/100 with every seeded failure detected, money figures exact by hand, and the HPOS and legacy order paths returning identical numbers. 1.3 s against a 2.74 M-row Action Scheduler table.
+
+**Deliberately not implemented**: history, baselines, trending, scheduled monitoring, multi-store dashboard, remote agent, SaaS backend, accounts, billing, payment APIs, webhook/email monitoring, uptime checks, notifications, AI, and any automatic fix. v0.1 exists to learn which findings agencies act on before any of that is worth designing.

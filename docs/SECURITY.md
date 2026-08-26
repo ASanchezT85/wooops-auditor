@@ -16,23 +16,70 @@ A broader keyword grep is noisier and worth knowing about:
 grep -rniE "(insert|update|delete|alter|truncate|drop|optimize|repair)" src/ templates/
 ```
 
-As of v0.1.0 that returns five hits: one in `DatabaseCheck` and three in `EnvironmentCheck`, all of them prose inside finding text ("Do not delete rows manually…", "WooCommerce database update pending"), plus the docblock in `WordPressGateway` stating this very guarantee. No statement, no API call.
+As of v0.1.1 that returns five hits: one in `DatabaseCheck` and three in `EnvironmentCheck`, all of them prose inside finding text ("Do not delete rows manually…", "WooCommerce database update pending"), plus the docblock in `WordPressGateway` stating this very guarantee. No statement, no API call.
 
 The only writes the plugin performs at all:
 
-1. The report file, into a protected directory (below).
-2. One WordPress option, `wooops_last_audit`, holding the timestamp, score, severity counts and file paths of the last run. Written with `autoload = false`.
+1. A report file — **only from WP-CLI, and only when the operator asked for one** (see below). The admin screen writes nothing.
+2. One WordPress option, `wooops_last_audit`, holding the timestamp, score and severity counts of the last run. No paths. Written with `autoload = false`.
 
 Neither touches business data.
 
-## Where reports go
+## How reports are delivered
 
-`ReportWriter::default()` writes to `wp-content/uploads/wooops-audit/`, creating it with mode `0750` and dropping in:
+This changed in the hardening pass, and the change is the point of it.
 
-- `.htaccess` with `Deny from all`
-- an empty `index.html`
+**From the admin screen, reports are never written to disk.** A download request
+re-runs the audit, renders the report into a string, and streams it straight to
+the authenticated browser as an attachment. There is no file left behind for a
+misconfigured server, a directory listing, or a URL guess to expose.
 
-Report files are written `0640`. On nginx the `.htaccess` does nothing, so the directory is **not** guaranteed private there — see LIMITATIONS.md. Reports are served through `admin-post.php` with a capability check and a nonce, never by linking to the uploads URL, and the download handler refuses any path that is not inside the plugin's own report directory.
+```
+Download report
+  → capability check (manage_woocommerce)
+  → nonce check (check_admin_referer)
+  → audit runs in memory
+  → ReportResponse: bytes + headers
+  → streamed as an attachment
+  → nothing persisted
+```
+
+The previous design wrote HTML and JSON into `wp-content/uploads/wooops-audit/`
+and protected them with an `.htaccess` deny rule plus an index file. That is not
+a control: `.htaccess` is ignored by nginx, and the files sat inside the web
+root regardless. **Do not treat `.htaccess` as an access control anywhere in
+this project.** The old directory is no longer created; if a store has one from
+an earlier version, delete it.
+
+**From WP-CLI, a file is written only because the operator asked for one.**
+`wp wooops audit` on its own prints a summary and writes nothing. `--stdout`
+streams the report to the terminal. `--format=json|html|both` without `--output`
+writes to a private directory under the system temp directory
+(`sys_get_temp_dir()/wooops-audit`, created 0700, files 0600) — never under
+`wp-content/uploads`. `--output=<path>` writes exactly where the operator said;
+choosing a location that the web server does not serve is the operator's
+responsibility, and the CLI help says so.
+
+Directory and file modes are POSIX. On Windows they are advisory and the real
+protection is the filesystem ACL of the temp directory.
+
+## What is stored between runs
+
+One WordPress option, `wooops_last_audit`, written with `autoload = false`, and
+it holds only:
+
+```json
+{ "timestamp": 1787768319, "score": 100, "summary": { "CRITICAL": 0, "HIGH": 0, ... } }
+```
+
+No file paths, no URLs, no report body, no PII, no secrets. A test asserts the
+exact key set, and a second one asserts the serialised value contains no path,
+URL or report-body fragment.
+
+Because nothing is stored, the download re-runs the audit. The report you
+download therefore reflects the store at download time, and can legitimately
+differ from the score shown for the last run. The report carries its own
+timestamp; the screen says this in as many words.
 
 ## Capabilities and nonces
 
@@ -67,5 +114,6 @@ WooOps v0.1 makes **no external HTTP requests**: no telemetry, no update check, 
 ## Threat notes
 
 - The HTML report describes operational weaknesses of a live store. Treat it as confidential; send it the way you would send a pentest report.
-- Anyone with `manage_woocommerce` can run the audit and read past reports. That is the same group that can already read WooCommerce ▸ Status.
+- Anyone with `manage_woocommerce` can run the audit and download a report. That is the same group that can already read WooCommerce ▸ Status. Because reports are generated on demand rather than stored, there is no archive of past reports for a later compromise to harvest.
+- Report bodies are served as attachments with `X-Content-Type-Options: nosniff`, and the HTML they contain is escaped by the template.
 - The audit runs synchronously in a request when triggered from the admin page. On a very large store, prefer WP-CLI.

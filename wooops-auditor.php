@@ -2,7 +2,7 @@
 /**
  * Plugin Name: WooOps Auditor
  * Description: Read-only operational diagnostics for WooCommerce stores. Inspects and reports; never modifies the store.
- * Version: 0.1.0
+ * Version: 0.1.1
  * Requires at least: 6.0
  * Requires PHP: 8.1
  * Author: WooOps
@@ -31,7 +31,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('WOOOPS_AUDITOR_VERSION', '0.1.0');
+define('WOOOPS_AUDITOR_VERSION', '0.1.1');
 define('WOOOPS_AUDITOR_FILE', __FILE__);
 
 /**

@@ -14,6 +14,11 @@ use WooOps\Auditor\Support\ReportWriter;
 
 /**
  * Read-only WooCommerce operational audit.
+ *
+ * Reports are only written when the operator asks for a file. Without
+ * --output they go to a private directory under the system temp directory,
+ * never into wp-content/uploads: an audit report describes how a live store
+ * is failing and has no business sitting in the web root.
  */
 final class AuditCommand
 {
@@ -34,8 +39,10 @@ final class AuditCommand
      * ---
      *
      * [--output=<path>]
-     * : Write the report to this path instead of the default protected
-     * directory. With --format=both, this is treated as a directory.
+     * : Write the report to this path instead of the default private
+     * directory. With --format=both, this is treated as a directory. The
+     * operator is responsible for choosing a location that is not served by
+     * the web server.
      *
      * [--stdout]
      * : Print the report to STDOUT instead of writing a file. Only valid with
@@ -92,6 +99,7 @@ final class AuditCommand
 
             $path = $writer->write($filename, $contents);
             WP_CLI::success("Report written to {$path}");
+            WP_CLI::debug('Reports are never written under wp-content/uploads.', 'wooops');
         }
     }
 

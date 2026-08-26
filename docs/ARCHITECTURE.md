@@ -2,7 +2,7 @@
 
 ## The one rule
 
-The auditor is **read-only**. It reads WordPress, WooCommerce and the database, and it writes exactly two things: a report file in a protected directory, and one WordPress option holding the metadata of the last run (timestamp, score, file paths). It never touches orders, settings, cron, webhooks, stock, or the Action Scheduler queue.
+The auditor is **read-only**. It reads WordPress, WooCommerce and the database, and it writes exactly two things: a report file — only from WP-CLI, only when the operator asked for one — and one WordPress option holding the metadata of the last run (timestamp, score, severity counts). It never touches orders, settings, cron, webhooks, stock, or the Action Scheduler queue.
 
 ## Shape
 
@@ -17,9 +17,12 @@ CheckInterface                    ← seven independent checks
 AuditRunner                       ← runs the checks, collects Findings + raw data
    └── AuditResult                ← score, summary, ordering, JSON schema
 
-ReporterInterface
+ReporterInterface              ← renders to a string; never touches the filesystem
    ├── JsonReporter               ← the stable, versioned contract
    └── HtmlReporter               ← templates/report.php, standalone
+
+ReportResponse                 ← bytes + HTTP headers, for streaming a download
+ReportWriter                   ← optional, CLI only: string → file on disk
 
 Entry points
    ├── WPCLI\AuditCommand         ← wp wooops audit          (primary)
@@ -41,12 +44,28 @@ That split buys three things:
 
 The cost is one interface. That is the whole abstraction budget of this plugin; there are no factories, no service container, no event system, no plugin API.
 
+## Rendering is separate from persisting
+
+A reporter turns an `AuditResult` into a string. What happens to that string is
+the caller's decision, and the two callers decide differently:
+
+```
+AuditResult → Reporter → string ─┬→ ReportResponse → streamed to the browser (admin)
+                                 └→ ReportWriter   → file on disk (WP-CLI, on request)
+```
+
+The admin screen never reaches the bottom branch. That is what stops audit
+reports from accumulating inside `wp-content/uploads`, where an `.htaccess`
+deny rule is worth nothing on nginx. A test asserts, statically, that
+`src/Admin/Page.php` contains no reference to `ReportWriter`,
+`file_put_contents`, `fopen`, `readfile` or `wp_upload_dir`.
+
 ## Data flow
 
 1. `AuditCommand` builds a `WordPressGateway` (which captures a single `now()` used by every age calculation, so a slow audit stays internally consistent).
 2. `AuditRunner` runs the seven checks in order. A check that throws is caught: the audit continues, the failure is recorded in `errors[]` and surfaced as a finding. An incomplete audit is never presented as a clean one.
 3. `AuditResult` holds the findings, the raw per-check data, and derives score/summary/ordering.
-4. A reporter serialises it.
+4. A reporter serialises it, and the caller decides whether that string is streamed or stored.
 
 ## Performance posture
 

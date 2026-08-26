@@ -38,7 +38,7 @@ decorated with a red X on every commit. A manual dispatch confirmed the file
 parses and reaches the runner; only the billing lock stops it. Restore the push
 trigger once that is resolved.
 
-## What is covered (45 tests, 111 assertions)
+## What is covered (58 tests, 148 assertions)
 
 **Environment** — WooCommerce active and healthy; default `WP_MEMORY_LIMIT` against an unlimited PHP limit (regression from the staging run); effective limit as the higher of the two; HTTP on a local/staging hostname stays INFO while HTTP on a public hostname stays HIGH; WooCommerce missing (CRITICAL, and the check stops rather than emitting misleading follow-ups); HPOS enabled and disabled; outdated DB schema; low memory; missing HTTPS; no secrets in the payload.
 
@@ -49,6 +49,10 @@ trigger once that is resolved.
 **Orders** — no pending; recent pending (INFO only); stale pending escalating to MEDIUM and HIGH; failed orders reporting *attempted value*; gateway concentration; and two semantic guards: the pending finding must never contain "revenue lost", and the failed finding must carry the "NOT revenue lost" sentence and no `revenue_lost` key. Plus: no PII anywhere in order findings.
 
 **Database** — normal tables pass; a 1M-row log table → CRITICAL and a 312k-row actions table → HIGH; a custom `$wpdb` prefix (`shop7x_`) is handled.
+
+**Admin hardening** (`tests/AdminSecurityTest.php`) — download and run both refused without `manage_woocommerce`; both refused with the capability but an invalid nonce (capability alone is not enough, and neither is a nonce alone); an unknown `format` refused; HTML and JSON downloads stream the report with the right `Content-Type`, `Content-Disposition` attachment filename, `Content-Length` and `X-Content-Type-Options: nosniff`; the response is marked no-cache; the whole admin flow creates no files anywhere; `wooops_last_audit` holds exactly `timestamp`, `score`, `summary` and its serialised value contains no path, URL or report body; and a static assertion that `src/Admin/Page.php` never mentions `ReportWriter`, `file_put_contents`, `fopen`, `readfile` or `wp_upload_dir`.
+
+These run against small WordPress function stubs (`tests/WordPressStubs.php`) driving a subclass that captures `header()`, `echo` and `exit`. The stubs do not test WordPress; they let the plugin's *use* of capability, nonce and header APIs be asserted without a WordPress installation. The real thing was then exercised on a live install — see below.
 
 **Reporting** — healthy store scores 100 with no actionable findings; troubled store scores below 100 and never below 0; worst-per-category scoring; findings ordered by severity; all seven checks present in the output; a check that throws does not lose the rest of the audit; JSON structure, schema version and per-finding keys; HTML is standalone (no external `script`/`link`/`img`, no CDN, no remote fonts); HTML escapes hostile finding content.
 
@@ -94,7 +98,41 @@ Every seeded failure was detected. The money figures were verified by hand again
 
 **Privacy.** The generated JSON was grepped for `email|phone|first_name|last_name|billing_address|postcode|auth_key|password|secret`: two hits, both the word "emails" inside explanatory prose. No PII, no secrets. The HTML report contains zero external references.
 
-**Reproducing it.** `wooops-staging/seed-failures.php` writes; the auditor never does. To rebuild the staging store: install WordPress + WooCommerce, symlink the plugin into `wp-content/plugins/`, `wp plugin activate wooops-auditor`, `wp eval-file seed-failures.php`, `wp wooops audit`.
+### Hardening validation (2026-08-26)
+
+A second staging store — WordPress + WooCommerce 11.0.1, prefix `shop7x_` — was
+built to drive the admin handlers through *real* WordPress: real users, real
+`current_user_can`, real `wp_create_nonce`/`check_admin_referer`, real
+filesystem. Results:
+
+```
+anonymous download refused ....... OK
+subscriber download refused ...... OK   (real user, no manage_woocommerce)
+admin + invalid nonce refused .... OK
+admin HTML download .............. OK
+    Content-Type: text/html; charset=utf-8
+    Content-Disposition: attachment; filename="wooops-audit-2026-08-26-181839.html"
+    Content-Length: 20278
+    X-Content-Type-Options: nosniff
+admin JSON download ............. OK
+    Content-Type: application/json; charset=utf-8
+stored option keys .............. timestamp, score, summary
+stored option payload ........... {"timestamp":1787768319,"score":100,"summary":{...}}
+no new files under uploads ...... OK (7 files, unchanged)
+no uploads/wooops-audit dir ..... OK
+```
+
+After the admin flow *and* every CLI invocation, `wp-content/uploads` contained
+only WooCommerce's own placeholder images and its `woocommerce_uploads`
+directory — nothing from WooOps. The option in the database was verified
+directly with SQL and holds metadata only.
+
+The authorization tests were also mutation-checked: removing the capability and
+nonce checks from `Page::authorize()` turns four of them red, and restoring the
+checks turns them green again. An authorization test that still passes without
+authorization is worthless, so this was verified rather than assumed.
+
+**Reproducing it.** `wooops-staging/seed-failures.php` writes; the auditor never does. To rebuild the staging store: install WordPress + WooCommerce, symlink the plugin into `wp-content/plugins/`, `wp plugin activate wooops-auditor`, `wp eval-file seed-failures.php`, `wp wooops audit`. The admin hardening was driven by a second script, `validate-admin.php`, which subclasses `Admin\Page` to capture `header()`/`echo`/`exit` and then asserts the filesystem and the stored option. Neither script ships with the plugin: they write, and the auditor never does.
 
 ## Fixtures
 
