@@ -33,7 +33,9 @@ It also cannot see *why* a scheduled action failed: the message lives in `action
 - The HTTPS finding reads the configured site URL. A site behind a TLS-terminating proxy may serve HTTPS correctly and still be flagged.
 - The memory finding uses the *effective* limit (`max(php memory_limit, WP_MEMORY_LIMIT)`, or unlimited when PHP says `-1`). It still describes web requests; the CLI/cron limit can differ entirely.
 - HTTPS is judged from the configured site URL, and downgraded to INFO on local/staging hostnames. A production site on a `.local` domain would therefore be under-reported.
-- On nginx, the `.htaccess` protecting the report directory does nothing. Reports there are only as private as the server configuration makes them. Serve them through the admin download link, or write them somewhere outside the web root with `--output`.
+- Reports downloaded from the admin screen are generated in memory and never stored, so there is nothing on disk to leak. The trade-off is that a download **re-runs the audit**: the file you get reflects the store at download time, not the moment the score on screen was calculated. Each report carries its own timestamp.
+- WP-CLI writes a file only when asked. Without `--output` it uses a private directory under the system temp directory; with `--output` it writes exactly where told, and keeping that path out of the web root is the operator's job. Directory/file modes (0700/0600) are POSIX; on Windows they are advisory and the temp directory ACL is what actually protects the file.
+- Anything an earlier version left in `wp-content/uploads/wooops-audit/` stays there. The plugin no longer creates or reads that directory, and it will not clean it up either — deleting files is not something a read-only auditor should do. Remove it by hand.
 - The admin-page run is synchronous. On a store large enough to matter, use WP-CLI.
 
 ## Thresholds are still heuristics

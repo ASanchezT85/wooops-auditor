@@ -78,7 +78,7 @@ Verify it yourself in one line — this greps for every SQL write and every Word
 grep -rnE '\$wpdb->(query|insert|update|delete|replace)|update_post_meta|wp_(schedule|unschedule)|as_(schedule|unschedule)|->save\(|->set_status\(' src/ templates/
 ```
 
-The plugin writes exactly two things, neither of them business data: the report file, and one WordPress option (`wooops_last_audit`) holding the timestamp, score and file paths of the last run.
+The plugin writes exactly two things, neither of them business data: a report file — only from WP-CLI, only when you ask for one — and one WordPress option (`wooops_last_audit`) holding the timestamp, score and severity counts of the last run. No paths, no report bodies, nothing under `wp-content/uploads`.
 
 Details and the threat notes: **[docs/SECURITY.md](docs/SECURITY.md)**.
 
@@ -105,7 +105,9 @@ wp wooops audit --format=html --output=/tmp/x.html  # explicit destination
 wp wooops audit --format=json --stdout              # pipe it somewhere
 ```
 
-Without `--output`, reports land in `wp-content/uploads/wooops-audit/`, created with an `.htaccess` deny rule and an index file. There is also a minimal screen at **WooCommerce ▸ WooOps Audit** for sites where you would rather not hand someone a shell. WP-CLI is the primary interface.
+`wp wooops audit` on its own writes nothing. With `--format` and no `--output`, reports go to a private directory under the system temp directory — never into `wp-content/uploads`, where an audit report has no business sitting. With `--output` they go exactly where you say.
+
+There is also a minimal screen at **WooCommerce ▸ WooOps Audit** for sites where you would rather not hand someone a shell. Downloads there are generated in memory and streamed to your browser: **no report file is ever stored on the client's server.** WP-CLI is the primary interface.
 
 The full seven-check audit takes **1.3 seconds** against a store with a 2.7-million-row Action Scheduler table. Everything is aggregated in SQL; no result set is ever loaded into memory.
 
@@ -130,7 +132,7 @@ Everything v0.1 cannot know: **[docs/LIMITATIONS.md](docs/LIMITATIONS.md)**. Rea
 
 ## How much of this is proven
 
-- **45 unit tests, 111 assertions**, covering every check across healthy, degraded and broken states — including the false-positive guards and the two semantic guards above.
+- **58 unit tests, 148 assertions**, covering every check across healthy, degraded and broken states — including the false-positive guards, the two semantic guards above, and the admin authorization, nonce, download-header and never-writes-a-file guarantees.
 - **Validated against a real store**: WooCommerce 11.0.1, MySQL 8.4, PHP 8.3, custom table prefix. A clean install scores 100/100 with zero false positives; a store with deliberately provoked failures detects every one of them, with the monetary figures verified by hand. That run found and fixed three real false positives. HPOS and legacy order storage return identical numbers.
 - **Not yet proven**: thresholds are heuristics validated against one store. A busy site with forty plugins will surface noise this has not seen. If you run it and something reads as nonsense, that feedback is worth more to this project than a feature request.
 
