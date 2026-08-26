@@ -15,3 +15,7 @@ spl_autoload_register(static function (string $class): void {
         }
     }
 });
+
+// WordPress function stubs, so the admin authorization and delivery path can
+// be asserted without a WordPress installation. See tests/WordPressStubs.php.
+require_once __DIR__ . '/WordPressStubs.php';
