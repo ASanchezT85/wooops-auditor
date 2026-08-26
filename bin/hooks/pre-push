@@ -1,0 +1,42 @@
+#!/bin/sh
+# Local stand-in for CI: this project has no GitHub Actions minutes, so the
+# checks that would have run on a push runner run here instead, before the
+# commits leave the machine.
+#
+# Install once:   git config core.hooksPath bin/hooks
+# If the default `php` on PATH is older than 8.1 (Laragon, XAMPP, macOS):
+#                 git config wooops.php /path/to/php8
+# Skip once:      git push --no-verify
+
+set -e
+
+PHP_BIN=$(git config wooops.php || echo php)
+
+if ! "$PHP_BIN" -r 'exit(PHP_VERSION_ID < 80100 ? 1 : 0);' 2>/dev/null; then
+    echo "pre-push: '$PHP_BIN' is older than PHP 8.1." >&2
+    echo "          Point the hook at a newer binary: git config wooops.php /path/to/php8" >&2
+    exit 1
+fi
+
+if [ ! -f vendor/bin/phpunit ]; then
+    echo "pre-push: vendor/ missing, run 'composer install' first." >&2
+    exit 1
+fi
+
+echo "pre-push: running the test suite..."
+"$PHP_BIN" vendor/phpunit/phpunit/phpunit --no-progress || {
+    echo "pre-push: tests failed, push aborted." >&2
+    exit 1
+}
+
+# The committed sample report is what gets shown to clients. It has to stay
+# reproducible from the fixtures, or the demo silently drifts from what the
+# code actually produces.
+echo "pre-push: checking the sample report is up to date..."
+"$PHP_BIN" bin/generate-sample.php > /dev/null
+if ! git diff --quiet -- examples/; then
+    echo "pre-push: examples/ is stale. Run 'php bin/generate-sample.php' and commit the result." >&2
+    exit 1
+fi
+
+echo "pre-push: ok."

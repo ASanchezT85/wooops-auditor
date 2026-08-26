@@ -225,5 +225,5 @@ ed110d1 docs: rewrite readme as an agency-facing pitch   ← not pushed
 
 ## 16. Exact next recommended step
 
-1. Confirm the CI workflow actually runs (it is registered and Actions is enabled, but no run had appeared at the time of writing), tag `v0.1.0`, and decide on `main` + repo visibility.
+1. Tag `v0.1.0`, and decide on `main` + repo visibility. (CI is settled: no Actions minutes on a private repo, so the gate is the local pre-push hook.)
 2. Then the only step that matters: **run it against real client stores** and collect false positives. The tool is finished enough; what it lacks is evidence about which of its findings agencies are willing to pay to be told about.

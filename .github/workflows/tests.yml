@@ -1,9 +1,12 @@
 name: tests
 
+# Manual trigger only. This repository is private and has no GitHub Actions
+# minutes available, so an automatic push trigger produces nothing but a failed
+# run on every commit. The real gate is the local pre-push hook in bin/hooks;
+# see docs/TESTING.md. Restore the push/pull_request triggers here the day the
+# repo goes public or Actions billing is enabled — the job itself is correct.
 on:
-  push:
-    branches: ['**']
-  pull_request:
+  workflow_dispatch:
 
 jobs:
   phpunit:

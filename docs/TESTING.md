@@ -15,6 +15,26 @@ Regenerate the demo report:
 php bin/generate-sample.php
 ```
 
+## The pre-push hook (this project's CI)
+
+The repository is private and has no GitHub Actions minutes, so an automatic
+workflow would only produce a failed run on every push. The checks run locally
+instead, before the commits leave the machine:
+
+```bash
+git config core.hooksPath bin/hooks
+git config wooops.php /path/to/php8    # only if `php` on PATH is older than 8.1
+```
+
+`bin/hooks/pre-push` then runs the full suite and verifies that
+`examples/sample-report.*` still regenerates identically from the fixtures — the
+sample is what gets shown to clients, so it must not drift from what the code
+produces. `git push --no-verify` skips it.
+
+`.github/workflows/tests.yml` is kept and correct (PHP 8.1/8.2/8.3 matrix, same
+two checks) but set to `workflow_dispatch` only. Restore its push trigger the
+day the repo goes public or Actions billing is enabled.
+
 ## What is covered (45 tests, 111 assertions)
 
 **Environment** — WooCommerce active and healthy; default `WP_MEMORY_LIMIT` against an unlimited PHP limit (regression from the staging run); effective limit as the higher of the two; HTTP on a local/staging hostname stays INFO while HTTP on a public hostname stays HIGH; WooCommerce missing (CRITICAL, and the check stops rather than emitting misleading follow-ups); HPOS enabled and disabled; outdated DB schema; low memory; missing HTTPS; no secrets in the payload.

@@ -134,7 +134,7 @@ Everything v0.1 cannot know: **[docs/LIMITATIONS.md](docs/LIMITATIONS.md)**. Rea
 - **Validated against a real store**: WooCommerce 11.0.1, MySQL 8.4, PHP 8.3, custom table prefix. A clean install scores 100/100 with zero false positives; a store with deliberately provoked failures detects every one of them, with the monetary figures verified by hand. That run found and fixed three real false positives. HPOS and legacy order storage return identical numbers.
 - **Not yet proven**: thresholds are heuristics validated against one store. A busy site with forty plugins will surface noise this has not seen. If you run it and something reads as nonsense, that feedback is worth more to this project than a feature request.
 
-Details: **[docs/TESTING.md](docs/TESTING.md)**.
+Contributing: `git config core.hooksPath bin/hooks` installs a pre-push hook that runs the suite and checks the sample report still regenerates identically. Details: **[docs/TESTING.md](docs/TESTING.md)**.
 
 ## Status
 
