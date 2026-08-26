@@ -17,9 +17,10 @@ php bin/generate-sample.php
 
 ## The pre-push hook (this project's CI)
 
-The repository is private and has no GitHub Actions minutes, so an automatic
-workflow would only produce a failed run on every push. The checks run locally
-instead, before the commits leave the machine:
+GitHub Actions cannot run for this project: the account it lives under is locked
+for billing, so every triggered run fails with "The job was not started because
+your account is locked due to a billing issue" — public repository or not. The
+checks run locally instead, before the commits leave the machine:
 
 ```bash
 git config core.hooksPath bin/hooks
@@ -32,8 +33,10 @@ sample is what gets shown to clients, so it must not drift from what the code
 produces. `git push --no-verify` skips it.
 
 `.github/workflows/tests.yml` is kept and correct (PHP 8.1/8.2/8.3 matrix, same
-two checks) but set to `workflow_dispatch` only. Restore its push trigger the
-day the repo goes public or Actions billing is enabled.
+two checks) but set to `workflow_dispatch` only, so a public repository is not
+decorated with a red X on every commit. A manual dispatch confirmed the file
+parses and reaches the runner; only the billing lock stops it. Restore the push
+trigger once that is resolved.
 
 ## What is covered (45 tests, 111 assertions)
 

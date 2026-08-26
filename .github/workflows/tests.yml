@@ -1,13 +1,14 @@
 name: tests
 
-# The repository is public, so Actions minutes are free. The local pre-push
-# hook in bin/hooks runs the same two checks before a push ever leaves the
-# machine; this is the belt to its braces, and it covers PHP versions the
-# developer does not have installed.
+# Manual trigger only, for now. The GitHub account this repository belongs to
+# is locked for billing ("The job was not started because your account is
+# locked due to a billing issue"), so no runner will pick this up on push, and
+# an automatic trigger would just stamp a red X on every commit of a public
+# repo. The job itself is correct and has been verified to reach the runner.
+#
+# The working gate meanwhile is the local pre-push hook: see docs/TESTING.md.
+# Restore the push/pull_request triggers once billing is sorted.
 on:
-  push:
-    branches: ['**']
-  pull_request:
   workflow_dispatch:
 
 jobs:
