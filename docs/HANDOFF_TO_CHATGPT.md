@@ -1,7 +1,8 @@
-# Handoff — WooOps Auditor v0.1 (security hardening)
+# Handoff — WooOps Auditor v0.1.1
 
 Self-contained status document. Assume the reader saw none of the build session.
-Last updated: 2026-08-26, after the report-security hardening pass.
+Last updated: 2026-08-26, after the report-security hardening was merged and
+released as `v0.1.1`.
 
 ---
 
@@ -16,6 +17,8 @@ The issue fixed: audit reports used to be written into `wp-content/uploads/wooop
 Now the admin screen never writes a report at all: a download re-runs the audit, renders it in memory, and streams it to the authenticated browser. WP-CLI writes a file only when the operator asks for one, and its default location moved out of the web root.
 
 Verified by 13 new unit tests (58 total, all green) **and** by driving the real admin handlers through a live WordPress install with real users, real capabilities and real nonces.
+
+**This work is merged and released.** PR #1 was merged into `main` and the result is tagged **`v0.1.1`**. The hardening branch is gone; `main` is the only branch.
 
 ## 2. Security issue corrected
 
@@ -77,6 +80,9 @@ its own timestamp, and the admin screen says so.
 | `docs/TESTING.md` | New coverage list, the hardening validation transcript, the mutation check. |
 | `docs/LIMITATIONS.md` | Replaced the nginx/`.htaccess` caveat with the re-run trade-off, the CLI persistence rule, POSIX modes on Windows, and the orphaned legacy directory. |
 | `readme.md` | Corrected the "reports land in wp-content/uploads" line and the writes list; test counts updated. |
+| `wooops-auditor.php`, `src/Audit/AuditRunner.php` | Version bumped to 0.1.1 (plugin header, `WOOOPS_AUDITOR_VERSION`, `AuditRunner::VERSION`). |
+| `examples/sample-report.json` | Regenerated: it embeds `auditor_version`. |
+| `.gitattributes` | **New.** Line endings normalised to LF. See §17. |
 
 Untouched, deliberately: the seven checks, their thresholds, `AuditRunner`, `AuditResult`, `HealthScore`, both reporters, `templates/report.php`, and the sample artifacts.
 
@@ -166,30 +172,56 @@ No CLI behaviour was removed. Only the default destination changed.
 
 ## 11. Branch
 
-```
-fix/v0.1-report-security-hardening
-```
-
-Branched from `main`. **Not merged.** No force-push. `main` is untouched.
+The work was done on `fix/v0.1-report-security-hardening`, branched from `main`,
+and delivered through **[PR #1 — "Stop persisting audit reports in the web
+root"](https://github.com/ASanchezT85/wooops-auditor/pull/1)** (17 files,
++908/−258), merged on 2026-08-26 with a merge commit. The branch was deleted
+locally and on the remote afterwards. `main` is now the only branch.
 
 ## 12. Commits
+
+On the branch, in order:
 
 ```
 8b4cfee  fix: stop persisting admin audit reports in public uploads
 9e4d9d5  test: cover authenticated report delivery
-         docs: document hardened report handling   (+ a follow-up fixing this list)
+6c8937a  docs: document hardened report handling
+bd7826a  docs: stop pinning the docs commit hash in the handoff
+94406f0  chore: bump version to 0.1.1
 ```
 
-The two documentation commits are the remaining ones on the branch; run
-`git log --oneline main..fix/v0.1-report-security-hardening` for their exact
-hashes. They were left unpinned on purpose: a commit cannot contain its own
-hash, and the first attempt to pin it by amending required a force-push, which
-the task brief prohibited. No further history was rewritten.
+Then on `main`:
+
+```
+5322454  Merge pull request #1 from ASanchezT85/fix/v0.1-report-security-hardening
+5c32c01  chore: normalise line endings to LF
+```
+
+Two notes on the history, since both were process deviations:
+
+- `bd7826a` exists because an earlier attempt to pin the docs commit's own hash
+  in this document required amending and a `--force-with-lease` push, which the
+  task brief prohibited. It was on the feature branch, seconds after the
+  original push. It was corrected with an ordinary commit rather than more
+  rewriting, and no history has been rewritten since.
+- `94406f0` (version bump) and `5c32c01` (line endings) were not in the original
+  brief. Both are explained in §17.
 
 
 ## 13. Git status
 
-Working tree clean, branch pushed to `origin`. Repository: `https://github.com/ASanchezT85/wooops-auditor`, public, GPL-2.0-or-later, default branch `main`, `v0.1.0` tagged on the pre-hardening state.
+Working tree clean, everything pushed. Repository:
+`https://github.com/ASanchezT85/wooops-auditor` — public, GPL-2.0-or-later,
+single branch `main` at `5c32c01`, 58 tests green, pre-push hook passing.
+
+Tags:
+
+| Tag | Points at | What it is |
+|---|---|---|
+| `v0.1.0` | `1d1819d` | The original v0.1, before the hardening |
+| `v0.1.1` | `70e8d16` (on `main`) | This hardening release |
+
+Both are annotated tags carrying a summary of the release in their message.
 
 ## 14. Known limitations
 
@@ -207,9 +239,37 @@ None. No defect was found in the seven checks during this pass, and none of thei
 
 ## 16. Exact next recommended step
 
-**Open a pull request from `fix/v0.1-report-security-hardening` into `main`, review the diff, merge, and tag `v0.1.1`.** The hardening is the last engineering work planned for v0.1.
+That step is done: PR #1 is merged and `v0.1.1` is tagged. **There is no engineering work left planned for v0.1.**
 
-Then stop building and go get evidence: run the auditor against **2–3 real client stores** with different plugin stacks, record every finding a human would call noise, and correct the thresholds. What agencies read first in that report decides the scope of v0.2 — not this codebase.
+Stop building and go get evidence: run the auditor against **2–3 real client stores** with different plugin stacks, record every finding a human would call noise, and correct the thresholds. What agencies read first in that report decides the scope of v0.2 — not this codebase.
+
+## 17. Two things done beyond the brief
+
+Both were judgement calls made during the pass. Neither touches the seven
+checks, and both are visible in the history.
+
+**Version bumped to 0.1.1** (`94406f0`). Tagging `v0.1.1` while the code still
+reported `0.1.0` would have shipped reports whose `auditor_version` field lied
+about which build produced them — and that field is precisely what external
+monitoring will key on later. The plugin header, `WOOOPS_AUDITOR_VERSION` and
+`AuditRunner::VERSION` all moved together, and the sample report was
+regenerated because it embeds the value. **`schema_version` stays `1.0.0`**: no
+field was added, removed or renamed, so consumers need no change.
+
+**Line endings normalised to LF** (`5c32c01`, `.gitattributes`). On a Windows
+checkout with `core.autocrlf=true`, git wrote CRLF while
+`bin/generate-sample.php` writes LF, so `examples/sample-report.*` appeared
+modified the instant they were regenerated. The pre-push hook asserts the sample
+still regenerates identically, so on someone else's machine that gate would have
+failed for no real reason — a false alarm in the project's only working CI
+substitute. `git add --renormalize .` reported **no content differences**: the
+files were already stored with LF, and the commit contains nothing but the
+`.gitattributes` file. The local working tree was then refreshed so 26 tracked
+files that still held CRLF on disk match the repository.
+
+Verified by the failure mode rather than by the commit existing: running
+`php bin/generate-sample.php` now leaves `git status` empty, where before it
+left `examples/sample-report.json` modified.
 
 ---
 
