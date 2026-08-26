@@ -4,13 +4,19 @@
 
 Every database statement in the plugin is a `SELECT` (or `SHOW TABLES`). There is no `INSERT`, `UPDATE`, `DELETE`, `ALTER`, `TRUNCATE`, `OPTIMIZE` or `DROP` anywhere in `src/`, and no call to any WooCommerce or WordPress write API (`wc_update_order_status`, `wp_schedule_event`, `wp_unschedule_event`, `as_unschedule_action`, `update_post_meta`, …).
 
-Verify it yourself:
+Verify it yourself. This greps for every SQL write and every WordPress/WooCommerce write API, and returns nothing:
 
 ```bash
-grep -rniE "\b(insert|update|delete|alter|truncate|drop|optimize|repair)\b" src/ templates/
+grep -rnE '\$wpdb->(query|insert|update|delete|replace)|update_post_meta|update_user_meta|wp_(schedule|unschedule|clear_scheduled)|as_(schedule|unschedule|enqueue)|->save\(|->set_status\(' src/ templates/
 ```
 
-As of v0.1.0 that returns exactly two hits, both prose inside recommendation text ("Do not delete rows manually…", "…after an update"). No statement, no API call.
+A broader keyword grep is noisier and worth knowing about:
+
+```bash
+grep -rniE "(insert|update|delete|alter|truncate|drop|optimize|repair)" src/ templates/
+```
+
+As of v0.1.0 that returns five hits: one in `DatabaseCheck` and three in `EnvironmentCheck`, all of them prose inside finding text ("Do not delete rows manually…", "WooCommerce database update pending"), plus the docblock in `WordPressGateway` stating this very guarantee. No statement, no API call.
 
 The only writes the plugin performs at all:
 
