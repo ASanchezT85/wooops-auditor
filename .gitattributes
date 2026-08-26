@@ -1,0 +1,11 @@
+# Line endings are normalised to LF in the repository and in the working tree.
+#
+# Without this, a Windows checkout with core.autocrlf=true gets CRLF while
+# bin/generate-sample.php writes LF, so examples/sample-report.* look modified
+# the moment they are regenerated — and the pre-push hook, which asserts the
+# sample still regenerates identically, fails for no real reason.
+* text=auto eol=lf
+
+# Never touch these.
+*.png binary
+*.webp binary
