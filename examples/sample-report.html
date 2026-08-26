@@ -68,7 +68,7 @@ footer{margin-top:44px;padding-top:14px;border-top:1px solid var(--line);color:v
               <span class="pill CRITICAL">CRITICAL 1</span>
               <span class="pill HIGH">HIGH 2</span>
               <span class="pill MEDIUM">MEDIUM 3</span>
-              <span class="pill LOW">LOW 4</span>
+              <span class="pill LOW">LOW 3</span>
               <span class="pill INFO">INFO 1</span>
               <span class="pill z">PASS 0</span>
           </div>
@@ -91,7 +91,7 @@ footer{margin-top:44px;padding-top:14px;border-top:1px solid var(--line);color:v
     <p>12 pending action(s) are past their scheduled time. The oldest is 1.2 hours late (median lag 32 minutes).</p>
           <span class="lbl">Why it matters</span><p>Past-due actions are queued work that should already have run. A sustained backlog means background processing is slower than the rate at which the store creates work, or has stopped entirely.</p>
               <span class="lbl">Recommended action</span><p>Confirm the queue runner is executing (WP-Cron or WP-CLI), then look at whether one hook is generating more work than the queue can drain.</p>
-                  <details open><summary>Evidence</summary><table class="ev"><tr><th>past due count</th><td><span class="v">12</span></td></tr><tr><th>oldest delay seconds</th><td><span class="v">1.2 hours</span></td></tr><tr><th>median delay seconds</th><td><span class="v">32 minutes</span></td></tr><tr><th>top hooks</th><td><table class="ev"><tr><th>action scheduler run queue</th><td><span class="v">6</span></td></tr><tr><th>woocommerce run product attribute lookup regeneration callback</th><td><span class="v">4</span></td></tr><tr><th>wcs scheduled subscription payment</th><td><span class="v">2</span></td></tr></table></td></tr></table></details>
+                  <details open><summary>Evidence</summary><table class="ev"><tr><th>past due count</th><td><span class="v">12</span></td></tr><tr><th>oldest delay seconds</th><td><span class="v">1.2 hours</span></td></tr><tr><th>median delay seconds</th><td><span class="v">32 minutes</span></td></tr><tr><th>top hooks</th><td><table class="ev"><tr><th>action scheduler run queue</th><td><span class="v">6</span></td></tr><tr><th>woocommerce run product attribute lookup regeneration callback</th><td><span class="v">4</span></td></tr><tr><th>wcs scheduled subscription payment</th><td><span class="v">2</span></td></tr></table></td></tr><tr><th>queue draining</th><td><span class="v">no</span></td></tr></table></details>
       </article>
   <article class="f HIGH">
     <h3><span class="pill HIGH">HIGH</span> Unusually large actionscheduler_actions table      <span class="id">database.actionscheduler_actions.bloat</span></h3>
@@ -121,13 +121,6 @@ footer{margin-top:44px;padding-top:14px;border-top:1px solid var(--line);color:v
           <span class="lbl">Why it matters</span><p>A single dominant hook usually means one broken extension rather than a general scheduler problem, which makes it much cheaper to fix.</p>
               <span class="lbl">Recommended action</span><p>Identify the plugin registering this hook and inspect its most recent failure log entry.</p>
                   <details open><summary>Evidence</summary><table class="ev"><tr><th>hook</th><td><span class="v">wc_update_product_lookup_tables</span></td></tr><tr><th>hook failures</th><td><span class="v">24</span></td></tr><tr><th>failed count</th><td><span class="v">43</span></td></tr></table></details>
-      </article>
-  <article class="f LOW">
-    <h3><span class="pill LOW">LOW</span> WordPress memory limit below the recommended 256M      <span class="id">environment.memory.below_recommended</span></h3>
-    <p>WP_MEMORY_LIMIT is 192M.</p>
-          <span class="lbl">Why it matters</span><p>WooCommerce recommends 256M for stores of any real size.</p>
-              <span class="lbl">Recommended action</span><p>Consider raising WP_MEMORY_LIMIT to 256M.</p>
-                  <details open><summary>Evidence</summary><table class="ev"><tr><th>wp memory limit</th><td><span class="v">192M</span></td></tr></table></details>
       </article>
   <article class="f LOW">
     <h3><span class="pill LOW">LOW</span> WP_DEBUG is enabled      <span class="id">environment.wp_debug.enabled</span></h3>

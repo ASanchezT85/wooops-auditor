@@ -36,7 +36,7 @@
         "CRITICAL": 1,
         "HIGH": 2,
         "MEDIUM": 3,
-        "LOW": 4,
+        "LOW": 3,
         "INFO": 1,
         "PASS": 0
     },
@@ -75,7 +75,8 @@
                     "action_scheduler_run_queue": 6,
                     "woocommerce_run_product_attribute_lookup_regeneration_callback": 4,
                     "wcs_scheduled_subscription_payment": 2
-                }
+                },
+                "queue_draining": false
             }
         },
         {
@@ -142,19 +143,6 @@
                 "hook": "wc_update_product_lookup_tables",
                 "hook_failures": 24,
                 "failed_count": 43
-            }
-        },
-        {
-            "id": "environment.memory.below_recommended",
-            "category": "environment",
-            "severity": "LOW",
-            "title": "WordPress memory limit below the recommended 256M",
-            "summary": "WP_MEMORY_LIMIT is 192M.",
-            "technical_details": "",
-            "why_it_matters": "WooCommerce recommends 256M for stores of any real size.",
-            "recommended_action": "Consider raising WP_MEMORY_LIMIT to 256M.",
-            "evidence": {
-                "wp_memory_limit": "192M"
             }
         },
         {

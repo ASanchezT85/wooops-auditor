@@ -29,13 +29,18 @@ Severity ladder and health-score penalty:
 |---|---|
 | WooCommerce not active | CRITICAL — and the check stops; everything else would be noise |
 | `woocommerce_db_version` < plugin version | HIGH |
-| `WP_MEMORY_LIMIT` < 128M | HIGH |
-| `WP_MEMORY_LIMIT` < 256M | LOW |
-| Site URL not HTTPS | HIGH |
+| Effective memory limit < 128M | HIGH |
+| Effective memory limit < 256M | LOW |
+| Site URL not HTTPS, public hostname | HIGH |
+| Site URL not HTTPS, local/staging hostname | INFO |
 | `WP_DEBUG` true | LOW |
 | none of the above | PASS |
 
-**False positives.** A site behind a reverse proxy terminating TLS can have an `http://` site URL and still serve HTTPS to customers — the HTTPS finding is then wrong. `WP_MEMORY_LIMIT` says nothing about the CLI limit used by cron.
+**Effective memory limit** = `php memory_limit` if it is unlimited (`-1`), otherwise `max(php memory_limit, WP_MEMORY_LIMIT)`. WordPress only ever *raises* the ini limit and never lowers it, so judging `WP_MEMORY_LIMIT` alone is wrong. This was found by running the auditor against a real store: WordPress defaults `WP_MEMORY_LIMIT` to 40M, and the first version reported HIGH on a healthy default install with an unlimited PHP limit.
+
+**Local hostnames.** `localhost`, `127.0.0.1`, `::1` and the `.test` / `.local` / `.localhost` / `.example` / `.invalid` suffixes downgrade the HTTPS finding to INFO. Plain HTTP is expected there, and a staging report full of red is a report nobody reads.
+
+**False positives.** A site behind a reverse proxy terminating TLS can have an `http://` site URL and still serve HTTPS to customers — the HTTPS finding is then wrong. The effective memory limit describes web requests; the CLI limit used by cron can differ.
 
 **Limitations.** Not a security scanner. It does not check file permissions, plugin vulnerabilities, or WordPress core integrity, and it deliberately collects nothing that could be a secret.
 
@@ -105,6 +110,8 @@ Plus: a `doing_cron` lock held longer than 10 minutes → HIGH.
 | > 6 h | CRITICAL |
 
 A queue that is seconds behind is normal and is never called a fault.
+
+**Straggler vs backlog.** When the median lag is under 5 minutes while the oldest action is at least 15 minutes late, the finding says so explicitly: the queue is draining and the delay sits in a few stuck actions rather than the whole queue. Observed on the staging store (32 past-due actions, median 3 minutes, oldest 1.2 hours) — without that sentence the finding reads as a stalled queue when it is not.
 
 **False positives.** Some plugins intentionally schedule actions in the past to make them run on the next queue pass; those appear as small, permanent lag. A store mid-import will have a large legitimate backlog that drains on its own.
 

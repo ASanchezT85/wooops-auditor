@@ -25,6 +25,10 @@ final class ActionSchedulerPastDueCheck implements CheckInterface
         0 => Severity::INFO,         // under 5 min
     ];
 
+    /** A median this small next to a much older straggler means one stuck action. */
+    private const DRAINING_MEDIAN = 300;
+    private const DRAINING_OLDEST = 900;
+
     public function key(): string
     {
         return 'action_scheduler_past_due';
@@ -77,6 +81,13 @@ final class ActionSchedulerPastDueCheck implements CheckInterface
         $severity = self::severityForDelay($data['oldest_delay']);
         arsort($data['by_hook']);
 
+        // Observed on a real store: a queue whose median lag is under a minute
+        // while one straggler is an hour late. That is a stuck action, not a
+        // backlog, and saying so is the difference between a useful finding and
+        // a scary number.
+        $draining = $data['median_delay'] < self::DRAINING_MEDIAN
+            && $data['oldest_delay'] >= self::DRAINING_OLDEST;
+
         $findings = [new Finding(
             'action_scheduler.past_due.backlog',
             'action_scheduler',
@@ -97,7 +108,11 @@ final class ActionSchedulerPastDueCheck implements CheckInterface
                 'oldest_delay_seconds' => $data['oldest_delay'],
                 'median_delay_seconds' => $data['median_delay'],
                 'top_hooks' => array_slice($data['by_hook'], 0, 10, true),
-            ]
+                'queue_draining' => $draining,
+            ],
+            $draining
+                ? 'The median lag is far smaller than the oldest delay: the queue is draining and the delay is concentrated in a few stuck actions, rather than the whole queue being behind.'
+                : ''
         )];
 
         return ['findings' => $findings, 'data' => $data];

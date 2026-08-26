@@ -31,10 +31,11 @@ It also cannot see *why* a scheduled action failed: the message lives in `action
 ## Environment caveats
 
 - The HTTPS finding reads the configured site URL. A site behind a TLS-terminating proxy may serve HTTPS correctly and still be flagged.
-- `WP_MEMORY_LIMIT` describes web requests; the CLI/cron limit can differ entirely.
+- The memory finding uses the *effective* limit (`max(php memory_limit, WP_MEMORY_LIMIT)`, or unlimited when PHP says `-1`). It still describes web requests; the CLI/cron limit can differ entirely.
+- HTTPS is judged from the configured site URL, and downgraded to INFO on local/staging hostnames. A production site on a `.local` domain would therefore be under-reported.
 - On nginx, the `.htaccess` protecting the report directory does nothing. Reports there are only as private as the server configuration makes them. Serve them through the admin download link, or write them somewhere outside the web root with `--output`.
 - The admin-page run is synchronous. On a store large enough to matter, use WP-CLI.
 
-## Thresholds are guesses, for now
+## Thresholds are still heuristics
 
-Every number in `docs/CHECKS.md` was chosen conservatively from experience, not measured against a corpus of real stores. The next phase is exactly that: run the auditor against staging environments with deliberately provoked failures, measure false positives, and correct the thresholds. Until that happens, treat severities as ordering hints rather than verdicts.
+Every number in `docs/CHECKS.md` was chosen conservatively from experience. One staging validation has been done (see `docs/TESTING.md`): a clean WooCommerce 11 install scores 100/100 with no false positives, and a store with deliberately provoked failures detects every one of them. That corrected three real false positives but is still a single store. Until the auditor has run against a corpus of real client sites, treat severities as ordering hints rather than verdicts.

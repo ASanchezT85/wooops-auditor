@@ -69,11 +69,58 @@ final class ChecksTest extends TestCase
     public function testOutdatedDatabaseSchemaAndLowMemoryAreReported(): void
     {
         $findings = $this->findings(new EnvironmentCheck(), [
-            'environment' => ['woocommerce_db_version' => '8.7.0', 'wp_memory_limit' => '64M', 'https' => false],
+            'environment' => [
+                'woocommerce_db_version' => '8.7.0',
+                'wp_memory_limit' => '64M',
+                'php_memory_limit' => '64M',
+                'https' => false,
+                'site_url' => 'http://shop.example.com',
+            ],
         ]);
 
         self::assertSame(Severity::HIGH, $this->severityOf($findings, 'environment.woocommerce.db_outdated'));
         self::assertSame(Severity::HIGH, $this->severityOf($findings, 'environment.memory.low'));
+        self::assertSame(Severity::HIGH, $this->severityOf($findings, 'environment.https.missing'));
+    }
+
+    public function testDefaultMemoryLimitAgainstAnUnlimitedPhpLimitIsNotFlagged(): void
+    {
+        // Found on a real staging store: WordPress defaults WP_MEMORY_LIMIT to
+        // 40M and only ever raises the ini limit, never lowers it. Judging the
+        // WordPress constant alone flagged HIGH on a perfectly healthy store.
+        $findings = $this->findings(new EnvironmentCheck(), [
+            'environment' => ['wp_memory_limit' => '40M', 'php_memory_limit' => '-1'],
+        ]);
+
+        self::assertSame(['environment.ok'], $this->ids($findings));
+    }
+
+    public function testTheEffectiveLimitIsTheHigherOfTheTwo(): void
+    {
+        $findings = $this->findings(new EnvironmentCheck(), [
+            'environment' => ['wp_memory_limit' => '512M', 'php_memory_limit' => '96M'],
+        ]);
+
+        self::assertSame(['environment.ok'], $this->ids($findings));
+    }
+
+    public function testHttpOnALocalOrStagingHostnameIsOnlyInformational(): void
+    {
+        foreach (['http://wooops-staging.test', 'http://localhost', 'http://shop.local'] as $url) {
+            $findings = $this->findings(new EnvironmentCheck(), [
+                'environment' => ['https' => false, 'site_url' => $url],
+            ]);
+
+            self::assertSame(Severity::INFO, $this->severityOf($findings, 'environment.https.missing'), $url);
+        }
+    }
+
+    public function testHttpOnARealHostnameStaysHigh(): void
+    {
+        $findings = $this->findings(new EnvironmentCheck(), [
+            'environment' => ['https' => false, 'site_url' => 'http://shop.example.com'],
+        ]);
+
         self::assertSame(Severity::HIGH, $this->severityOf($findings, 'environment.https.missing'));
     }
 
@@ -209,6 +256,38 @@ final class ChecksTest extends TestCase
         $finding = $findings[0];
         self::assertSame(Severity::CRITICAL, $finding->severity);
         self::assertSame(12, $finding->evidence['past_due_count']);
+    }
+
+    public function testAStragglerIsDistinguishedFromABacklog(): void
+    {
+        // From the staging run: 32 past-due actions, median lag 3 minutes,
+        // oldest 1.2 hours. That is one stuck action, not a stalled queue.
+        $findings = $this->findings(new ActionSchedulerPastDueCheck(), [
+            'past_due_actions' => [
+                'total' => 32,
+                'oldest_delay' => 4200,
+                'median_delay' => 180,
+                'by_hook' => ['action_scheduler_run_queue' => 32],
+            ],
+        ]);
+
+        self::assertTrue($findings[0]->evidence['queue_draining']);
+        self::assertStringContainsString('draining', $findings[0]->technicalDetails);
+    }
+
+    public function testARealBacklogIsNotCalledDraining(): void
+    {
+        $findings = $this->findings(new ActionSchedulerPastDueCheck(), [
+            'past_due_actions' => [
+                'total' => 4000,
+                'oldest_delay' => 90000,
+                'median_delay' => 70000,
+                'by_hook' => ['action_scheduler_run_queue' => 4000],
+            ],
+        ]);
+
+        self::assertFalse($findings[0]->evidence['queue_draining']);
+        self::assertSame('', $findings[0]->technicalDetails);
     }
 
     // --- 05 / 06 Orders -----------------------------------------------------

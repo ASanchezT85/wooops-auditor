@@ -6,6 +6,7 @@ namespace WooOps\Auditor\Checks;
 use WooOps\Auditor\Audit\Finding;
 use WooOps\Auditor\Audit\Severity;
 use WooOps\Auditor\Store\StoreGateway;
+use WooOps\Auditor\Support\Format;
 
 /**
  * Check 01 — WooCommerce environment facts and obvious environment problems.
@@ -14,8 +15,9 @@ use WooOps\Auditor\Store\StoreGateway;
 final class EnvironmentCheck implements CheckInterface
 {
     /** Bytes. Below this WooCommerce admin screens routinely fatal. */
-    private const MEMORY_LOW = 268435456;   // 256M
+    private const MEMORY_LOW = 268435456;      // 256M
     private const MEMORY_CRITICAL = 134217728; // 128M
+    private const MEMORY_UNLIMITED = -1;
 
     public function key(): string { return 'environment'; }
     public function title(): string { return 'WooCommerce Environment'; }
@@ -64,41 +66,59 @@ final class EnvironmentCheck implements CheckInterface
             );
         }
 
-        $memory = $this->toBytes($env['wp_memory_limit']);
-        if ($memory > 0 && $memory < self::MEMORY_CRITICAL) {
+        // What matters is the limit PHP will actually enforce. WordPress only
+        // ever raises the limit, never lowers it, so a default WP_MEMORY_LIMIT
+        // of 40M against an unlimited PHP limit is not a problem — and flagging
+        // it would fire on a large share of perfectly healthy stores.
+        $memory = $this->effectiveMemory($env['php_memory_limit'], $env['wp_memory_limit']);
+        $evidence = [
+            'wp_memory_limit' => $env['wp_memory_limit'],
+            'php_memory_limit' => $env['php_memory_limit'],
+            'effective_limit' => $memory === self::MEMORY_UNLIMITED ? 'unlimited' : $memory,
+        ];
+
+        if ($memory !== self::MEMORY_UNLIMITED && $memory > 0 && $memory < self::MEMORY_CRITICAL) {
             $findings[] = new Finding(
                 'environment.memory.low',
                 'environment',
                 Severity::HIGH,
-                'WordPress memory limit is very low',
-                sprintf('WP_MEMORY_LIMIT is %s.', $env['wp_memory_limit']),
+                'Effective memory limit is very low',
+                sprintf(
+                    'The effective PHP memory limit is %s (WP_MEMORY_LIMIT %s, php memory_limit %s).',
+                    Format::bytes($memory),
+                    $env['wp_memory_limit'],
+                    $env['php_memory_limit']
+                ),
                 'WooCommerce background jobs and admin reports are memory hungry. Low limits show up as blank screens and silently killed scheduled actions.',
-                'Raise WP_MEMORY_LIMIT to at least 256M in wp-config.php, and confirm the PHP limit allows it.',
-                ['wp_memory_limit' => $env['wp_memory_limit'], 'php_memory_limit' => $env['php_memory_limit']]
+                'Raise the PHP memory_limit to at least 256M, and WP_MEMORY_LIMIT with it.',
+                $evidence
             );
-        } elseif ($memory > 0 && $memory < self::MEMORY_LOW) {
+        } elseif ($memory !== self::MEMORY_UNLIMITED && $memory > 0 && $memory < self::MEMORY_LOW) {
             $findings[] = new Finding(
                 'environment.memory.below_recommended',
                 'environment',
                 Severity::LOW,
-                'WordPress memory limit below the recommended 256M',
-                sprintf('WP_MEMORY_LIMIT is %s.', $env['wp_memory_limit']),
+                'Effective memory limit below the recommended 256M',
+                sprintf('The effective PHP memory limit is %s.', Format::bytes($memory)),
                 'WooCommerce recommends 256M for stores of any real size.',
-                'Consider raising WP_MEMORY_LIMIT to 256M.',
-                ['wp_memory_limit' => $env['wp_memory_limit']]
+                'Consider raising the PHP memory_limit to 256M.',
+                $evidence
             );
         }
 
         if (!$env['https']) {
+            $local = $this->isLocalHost($env['site_url']);
             $findings[] = new Finding(
                 'environment.https.missing',
                 'environment',
-                Severity::HIGH,
-                'Site URL is not HTTPS',
+                $local ? Severity::INFO : Severity::HIGH,
+                $local ? 'Site URL is not HTTPS (local or staging host)' : 'Site URL is not HTTPS',
                 sprintf('The configured site URL is %s.', $env['site_url']),
                 'Checkout, payment gateway callbacks and most modern payment methods require HTTPS.',
-                'Install a certificate and move the site URL to https://.',
-                ['site_url' => $env['site_url']]
+                $local
+                    ? 'Expected on a local or staging hostname. Confirm the production site is served over HTTPS.'
+                    : 'Install a certificate and move the site URL to https://.',
+                ['site_url' => $env['site_url'], 'local_host' => $local]
             );
         }
 
@@ -131,11 +151,45 @@ final class EnvironmentCheck implements CheckInterface
         return ['findings' => $findings, 'data' => $env];
     }
 
-    /** "256M" -> bytes. Returns 0 for -1/unknown so callers can skip the check. */
+    /**
+     * The limit PHP will really enforce: WordPress raises the limit when
+     * WP_MEMORY_LIMIT is higher than the ini value, and never lowers it.
+     */
+    private function effectiveMemory(string $php, string $wp): int
+    {
+        $phpBytes = $this->toBytes($php);
+        if ($phpBytes === self::MEMORY_UNLIMITED) {
+            return self::MEMORY_UNLIMITED;
+        }
+
+        return max($phpBytes, $this->toBytes($wp));
+    }
+
+    /** Local and staging hostnames, where plain HTTP is expected. */
+    private function isLocalHost(string $siteUrl): bool
+    {
+        $host = strtolower((string) parse_url($siteUrl, PHP_URL_HOST));
+        if (in_array($host, ['localhost', '127.0.0.1', '::1'], true)) {
+            return true;
+        }
+
+        foreach (['.test', '.local', '.localhost', '.example', '.invalid'] as $suffix) {
+            if (str_ends_with($host, $suffix)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** "256M" -> bytes. -1 means unlimited; 0 means unknown. */
     private function toBytes(string $value): int
     {
         $value = trim($value);
-        if ($value === '' || $value === '-1') {
+        if ($value === '-1') {
+            return self::MEMORY_UNLIMITED;
+        }
+        if ($value === '') {
             return 0;
         }
         $unit = strtoupper(substr($value, -1));

@@ -52,8 +52,9 @@ final class WordPressGateway implements StoreGateway
             $active = (array) get_option('active_plugins', []);
             $pluginCount = count($active);
             $all = get_plugins();
+            $self = basename(dirname(defined('WOOOPS_AUDITOR_FILE') ? WOOOPS_AUDITOR_FILE : __FILE__));
             foreach ($active as $file) {
-                if (!isset($all[$file])) {
+                if (!isset($all[$file]) || str_starts_with($file, $self . '/')) {
                     continue;
                 }
                 $name = (string) $all[$file]['Name'];

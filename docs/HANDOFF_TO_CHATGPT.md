@@ -12,7 +12,7 @@ It modifies nothing in the store. It makes no outbound network requests. It coll
 
 A demo report for a fictional troubled store is committed at `examples/sample-report.html` (score 54/100: 1 CRITICAL, 2 HIGH, 3 MEDIUM, 4 LOW, 1 INFO).
 
-The tool is ready to be pointed at a real staging store. It has **not** yet been run against one — that is the next step, and the thresholds it ships with are unvalidated heuristics.
+It **has** been run against a real WooCommerce 11.0.1 staging store (see §6). That run found and fixed three false positives, confirmed the HPOS and legacy SQL paths agree exactly, and verified the money figures by hand. The thresholds are still heuristics validated against one store, not a corpus.
 
 ## 2. Current status
 
@@ -21,7 +21,8 @@ The tool is ready to be pointed at a real staging store. It has **not** yet been
 | Location | `C:\laragon\www\wooops-auditor` (new standalone git repo) |
 | Branch | `feature/wooops-auditor-v0.1` |
 | Version | 0.1.0, JSON schema 1.0.0 |
-| Tests | 39 tests, 102 assertions, **all passing** |
+| Tests | 45 tests, 111 assertions, **all passing** |
+| Staging validation | Run against WooCommerce 11.0.1 on 2026-08-26; clean install 100/100, seeded-failure store 33/100, HPOS and legacy paths identical |
 | Runtime deps | none |
 | Dev deps | PHPUnit 10.5 |
 | Requirements | PHP 8.1+, WordPress 6.x, WooCommerce; HPOS on or off |
@@ -74,9 +75,19 @@ All thresholds are class constants and documented in `docs/CHECKS.md`.
 
 ## 6. Tests
 
-`vendor/bin/phpunit` — 39 tests, 102 assertions, all green. Covered: all seven checks across healthy/degraded/broken states, the false-positive guards (`DISABLE_WP_CRON`, seconds-of-lag, Action Scheduler absent), custom DB prefix, HPOS on/off, JSON schema shape, HTML standalone-ness, HTML XSS escaping, severity ordering, score bounds, and two **semantic** guards that assert the report never calls pending or failed order value "revenue lost".
+`vendor/bin/phpunit` — 45 tests, 111 assertions, all green. Covered: all seven checks across healthy/degraded/broken states, the false-positive guards (`DISABLE_WP_CRON`, seconds-of-lag, Action Scheduler absent), custom DB prefix, HPOS on/off, JSON schema shape, HTML standalone-ness, HTML XSS escaping, severity ordering, score bounds, and two **semantic** guards that assert the report never calls pending or failed order value "revenue lost".
 
-Not covered: `WordPressGateway`, `AuditCommand`, `Admin\Page` — they need a real WordPress; mocking `wpdb` would only assert the SQL matches itself. See `docs/TESTING.md`.
+Not unit-tested: `WordPressGateway`, `AuditCommand`, `Admin\Page` — they need a real WordPress; mocking `wpdb` would only assert the SQL matches itself.
+
+**Staging validation (2026-08-26).** WooCommerce 11.0.1, MySQL 8.4, PHP 8.3, custom prefix `shop7x_`, at `C:\laragon\www\wooops-staging`.
+
+- Clean install → **100/100**, zero false positives — after fixing three the first run exposed: (a) `WP_MEMORY_LIMIT` judged alone flagged HIGH on a healthy store, because WordPress defaults it to 40M and only ever *raises* the ini limit — now judged on the effective limit; (b) HTTP on `.test`/`localhost` flagged HIGH — now INFO on local/staging hostnames; (c) the auditor listed itself as a WooCommerce plugin. All three have regression tests.
+- Seeded-failure store (18 orders, 43 failed actions, 12 past-due, cron backdated 8 h 20 m, 2.74 M-row AS log table) → **33/100**, every seeded failure detected, money figures exact by hand (`821.75`, `1,420.18`), the 30-day window correctly excluding an order seeded 40 days back.
+- Repeated with **HPOS enabled**: identical counts and totals to the legacy path. Two separate SQL implementations, same answers.
+- 1.3–1.4 s for the full audit against the 2.74 M-row table.
+- JSON grepped for PII/secret patterns: only the word "emails" in prose.
+
+Full detail and reproduction steps in `docs/TESTING.md`.
 
 ## 7. Commands
 
@@ -114,13 +125,13 @@ Full list in `docs/LIMITATIONS.md`. The ones that matter commercially:
 - Failed actions are historical; a big count can describe an incident fixed months ago.
 - `TABLE_ROWS` is an InnoDB estimate.
 - **No baseline and no history**, so the auditor cannot say whether today's numbers are normal *for this store*. This is the biggest gap between v0.1 and the monitoring product it is meant to inform.
-- Thresholds are unvalidated heuristics until run against real stores.
+- Thresholds are heuristics validated against exactly one store. A corpus of real client sites is still needed.
 
 ## 10. Bugs / technical debt
 
 No known bugs. Debt, honestly stated:
 
-- `WordPressGateway` is untested code running real SQL. It is the highest-risk file in the repo and the first thing a staging run will exercise.
+- `WordPressGateway` has no unit tests. It is now exercised end-to-end against a real store (both HPOS and legacy), which is the meaningful check, but it remains the file where a regression would go unnoticed by CI.
 - The legacy (non-HPOS) order queries use `postmeta` subqueries for the sample listing; correct, but slower than the HPOS path on large legacy stores.
 - The `.htaccess` protecting the report directory is inert on nginx.
 - `ArrayGateway`'s override merge has a small special case for list-shaped keys (`cron.overdue`, `tables`) because `array_replace_recursive` merges lists index-wise. It works and is covered by tests, but it is the one piece of fixture code that will surprise someone.
@@ -159,12 +170,11 @@ docs: document WooOps auditor v0.1
 
 ## 15. Exact next recommended step
 
-**Run it against a real WooCommerce staging store** — nothing else in this project is worth doing first.
+**Run it against two or three real client stores** — the staging validation is done (§6), and what it cannot give us is variety.
 
-1. Copy the plugin into a staging site, activate, run `wp wooops audit`.
-2. That single run exercises `WordPressGateway`, the only untested file, against both HPOS and legacy layouts.
-3. Then provoke controlled failures — kill cron, fail a batch of scheduled actions, leave orders pending, break a gateway key — and confirm each one is detected at a sensible severity.
-4. Record every false positive. Correct the thresholds in the check constants and in `docs/CHECKS.md`.
-5. Only then take a report to an agency.
+1. Pick real, busy WooCommerce sites with different plugin stacks. Run `wp wooops audit --format=both`.
+2. Record every finding that a human would call noise. The three false positives already fixed all came from one clean install; a real store with 40 plugins will surface more.
+3. Correct thresholds in the check constants and in `docs/CHECKS.md`.
+4. Then take a report to an agency and watch which findings they read first. That, not the code, is what decides the v0.2 scope.
 
 Suggested v0.2, once real-store evidence exists: store the JSON of past runs so the auditor can report *change* rather than absolute numbers (the single most valuable missing capability), and add whichever check the staging exercise proves is missing.
