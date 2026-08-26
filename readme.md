@@ -138,6 +138,10 @@ Details: **[docs/TESTING.md](docs/TESTING.md)**.
 
 The point of this version is to learn which findings agencies actually act on before building anything larger around them. If you maintain WooCommerce stores and run this against one, tell us which finding you looked at first.
 
+## Licence
+
+Proprietary — see [LICENSE](LICENSE). Running it against stores you own or maintain, and sharing the reports it produces, is fine; redistribution is not.
+
 ## Docs
 
 [Architecture](docs/ARCHITECTURE.md) · [Checks](docs/CHECKS.md) · [Security & privacy](docs/SECURITY.md) · [Testing](docs/TESTING.md) · [Limitations](docs/LIMITATIONS.md) · [Handoff](docs/HANDOFF_TO_CHATGPT.md)
