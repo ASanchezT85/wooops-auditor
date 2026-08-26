@@ -16,7 +16,7 @@ A broader keyword grep is noisier and worth knowing about:
 grep -rniE "(insert|update|delete|alter|truncate|drop|optimize|repair)" src/ templates/
 ```
 
-As of v0.1.0 that returns five hits: one in `DatabaseCheck` and three in `EnvironmentCheck`, all of them prose inside finding text ("Do not delete rows manually…", "WooCommerce database update pending"), plus the docblock in `WordPressGateway` stating this very guarantee. No statement, no API call.
+As of v0.1.1 that returns five hits: one in `DatabaseCheck` and three in `EnvironmentCheck`, all of them prose inside finding text ("Do not delete rows manually…", "WooCommerce database update pending"), plus the docblock in `WordPressGateway` stating this very guarantee. No statement, no API call.
 
 The only writes the plugin performs at all:
 
